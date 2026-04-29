@@ -1493,8 +1493,8 @@
       const OUT_OF_SCHOOL_TOLERANCE = 15;
 
       if (!dayKey){
-        main.textContent = "Cáfa se skrývá ve stínech 😎";
-        sub.textContent = `Víkend • mimo školu • ${src}`;
+        main.textContent = "He gone 😔";
+        sub.textContent = `Víkend • Není ve škole • ${src}`;
         scheduleSixSevenScan();
         return;
       }
@@ -1503,8 +1503,8 @@
       const { firstIdx, lastIdx } = getTeacherDayBounds(arr);
 
       if (firstIdx === null || lastIdx === null){
-        main.textContent = "Cáfa se skrývá ve stínech 😎";
-        sub.textContent = `${dayLabelCz(dayKey)} • bez výuky • ${src}`;
+        main.textContent = "He gone 😔";
+        sub.textContent = `${dayLabelCz(dayKey)} • Momentálně neučí • ${src}`;
         scheduleSixSevenScan();
         return;
       }
@@ -1513,8 +1513,8 @@
       const lastEnd = TIMES_MIN[lastIdx].endMin;
 
       if (nowMin < firstStart){
-        main.textContent = "Cáfa se skrývá ve stínech 😎";
-        sub.textContent = `${dayLabelCz(dayKey)} • před výukou • ${src}`;
+        main.textContent = "He is getting ready 😎";
+        sub.textContent = `${dayLabelCz(dayKey)} • Za chvíli začne hodina • ${src}`;
         scheduleSixSevenScan();
         return;
       }
