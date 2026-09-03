@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.6.1",
+    version: "1.6.2",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000,
     localTimetableUpdated: "03.09.2026"
@@ -16,6 +16,11 @@
     Permanent: "Stálý",
     Actual: "Tento týden",
     Next: "Příští týden"
+  });
+  const TIMETABLE_KICKERS = Object.freeze({
+    Permanent: "Stálý rozvrh",
+    Actual: "Přehled tohoto týdne",
+    Next: "Přehled příštího týdne"
   });
   const TIMETABLE_VIEW_KEYS = Object.keys(TIMETABLE_VIEWS);
   const classApi = (type) =>
@@ -437,12 +442,12 @@
   async function loadMinecraftSplash() {
     const target = $("mcSplash");
     const fallback = [
-      "DE4A: final year unlocked.",
-      "Bakaláři moment.",
-      "Touch grass after class.",
-      "Maturita loading…",
-      "Local timetable. Production-grade trust issues.",
-      "School Progress — allegedly functional."
+      "Co říká Gejmr? BATMAAAAN",
+      "Běž si koupit kakajíčko!",
+      "Hmm hmm hmm… mrkev v zimě",
+      "SIX SEVEN!!!1!!1!",
+      "She progress on my school until I maturita",
+      "Cafagang"
     ];
     try {
       const response = await fetch("./MinecraftTextSource.txt?ts=" + Date.now(), {
@@ -497,14 +502,24 @@
   }
 
   function applyCardTransparency(percent) {
-    const value = Math.max(0, Math.min(60, Number(percent) || 0));
+    const value = Math.max(0, Math.min(100, Number(percent) || 0));
     const surfaceOpacity = 1 - value / 100;
-    const strongOpacity = 1 - (value * 0.66) / 100;
+    const strongOpacity = surfaceOpacity;
     document.documentElement.style.setProperty("--surface-opacity", surfaceOpacity.toFixed(2));
     document.documentElement.style.setProperty("--surface-strong-opacity", strongOpacity.toFixed(2));
     $("cardTransparencyRange").value = String(value);
     $("cardTransparencyValue").textContent = value + "%";
     localStorage.setItem("sp_card_transparency", String(value));
+  }
+
+  function initialCardTransparency() {
+    const migrationKey = "sp_card_transparency_default_v2";
+    const saved = localStorage.getItem("sp_card_transparency");
+    if (localStorage.getItem(migrationKey) !== "1") {
+      localStorage.setItem(migrationKey, "1");
+      if (saved === null || saved === "26") return "60";
+    }
+    return saved || "60";
   }
 
   function setSettingsOpen(open) {
@@ -566,7 +581,7 @@
     applyTheme(localStorage.getItem("sp_theme") || "dark");
     applyTitleMode(localStorage.getItem("sp_mode") || "normal");
     applyUiScale(localStorage.getItem("sp_ui_scale") || "100");
-    applyCardTransparency(localStorage.getItem("sp_card_transparency") || "26");
+    applyCardTransparency(initialCardTransparency());
     applyVisibility();
   }
 
@@ -592,6 +607,10 @@
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     });
+    setText(
+      "timetableKicker",
+      TIMETABLE_KICKERS[state.classView] || TIMETABLE_KICKERS.Actual
+    );
   }
 
   async function setTimetableView(view) {
@@ -620,34 +639,23 @@
       : state.classOnline
         ? "online"
         : "fallback";
-    const actualMode = state.syncState === "loading"
-      ? "loading"
-      : state.actualOnline
-        ? "online"
-        : "fallback";
     const teacherMode = state.syncState === "loading"
       ? "loading"
       : state.teacherOnline
         ? "online"
         : "fallback";
 
-    setStatusMode($("headerSourcePill"), classMode);
     setStatusMode($("pillClass"), classMode);
     setStatusMode($("pillTeacher"), teacherMode);
-    setStatusMode($("pillInfo"), actualMode);
     setStatusMode($("ttUpdated"), classMode);
 
-    $("headerSourceDot").className = "status-dot " + classMode;
     $("dotClass").className = "status-dot " + classMode;
     $("dotTeacher").className = "status-dot " + teacherMode;
-    $("dotInfo").className = "status-dot " + actualMode;
     $("dotTt").className = "status-dot " + classMode;
 
     if (state.syncState === "loading") {
-      setText("headerSourceText", "Připojuji…");
       setText("statusClass", "Ověřuji online změny");
       setText("statusTeacher", "Ověřuji online změny");
-      setText("infoSrc", "Načítání");
       setText("statusHint", "Ověřuji Bakaláře. Lokální rozvrh čeká pouze jako nouzová záloha.");
       return;
     }
@@ -660,10 +668,8 @@
       classStatus = selectedLabel + " nedostupný · stálý online";
     }
 
-    setText("headerSourceText", CONFIG.className + " · " + (state.classOnline ? "online" : "nouzový režim"));
     setText("statusClass", classStatus);
     setText("statusTeacher", state.teacherOnline ? "Tento týden · online" : "Lokální nouzový fallback");
-    setText("infoSrc", state.actualOnline ? "Online" : "Nouzový režim");
 
     if (state.classOnline && state.actualOnline && state.teacherOnline) {
       setText(
@@ -1043,8 +1049,8 @@
     const updated = state.lastSync || new Date();
     setText(
       "ttUpdatedText",
-      "Aktualizováno " + formatDateTimeCZ(updated) + " · " +
-        timetableViewLabel() + " · " + (state.classOnline ? "online" : "nouzový režim")
+      "Aktualizováno " + formatDateTimeCZ(updated) +
+        (state.classOnline ? "" : " · nouzový režim")
     );
     updateTimetableNowHighlight();
     scheduleSixSevenScan();
@@ -1219,6 +1225,7 @@
   function setDailyBadge(kind, text) {
     const badge = $("dailyBadge");
     badge.className = "badge" + (kind ? " " + kind : "");
+    badge.classList.toggle("hidden", !text);
     badge.textContent = text;
   }
 
@@ -1358,7 +1365,7 @@
 
     setText("dayStartText", CLASS_TIMES[firstIndex].start);
     setText("dayEndText", CLASS_TIMES[lastIndex].end);
-    setText("dailyDebug", completedCount + " z " + activeIndexes.length + " hotovo");
+    setText("dailyDebug", completedCount + " z " + activeIndexes.length + " hodin");
     renderDayTimeline(lessons, activeIndexes, nowMin);
 
     if (nowMin < firstTime.startMin) {
@@ -1372,13 +1379,14 @@
     }
 
     if (nowMin > lastTime.endMin) {
-      setDailyBadge("free", "Hotovo");
-      setText("dailyText", "Dnešní výuka dokončena. GG 😎");
+      setDailyBadge("free", "");
+      setText("dailyText", "Dnešní výuka skončila.");
       setText(
         "daylabel",
-        activeIndexes.length + " hodin · " + CLASS_TIMES[firstIndex].start + "–" + CLASS_TIMES[lastIndex].end
+        "Výuka probíhala " + CLASS_TIMES[firstIndex].start + "–" +
+          CLASS_TIMES[lastIndex].end + " · " + activeIndexes.length + " hodin"
       );
-      setText("dailyDebug", activeIndexes.length + " z " + activeIndexes.length + " hotovo");
+      setText("dailyDebug", activeIndexes.length + " z " + activeIndexes.length + " hodin");
       return;
     }
 
@@ -1412,9 +1420,14 @@
       return;
     }
 
-    setDailyBadge("free", "Hotovo");
-    setText("dailyText", "Dnešní výuka dokončena. GG 😎");
-    setText("daylabel", activeIndexes.length + " hodin dokončeno.");
+    setDailyBadge("free", "");
+    setText("dailyText", "Dnešní výuka skončila.");
+    setText(
+      "daylabel",
+      "Výuka probíhala " + CLASS_TIMES[firstIndex].start + "–" +
+        CLASS_TIMES[lastIndex].end + " · " + activeIndexes.length + " hodin"
+    );
+    setText("dailyDebug", activeIndexes.length + " z " + activeIndexes.length + " hodin");
   }
 
   function normalizeTrackerClass(value) {
