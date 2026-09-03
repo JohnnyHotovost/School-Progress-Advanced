@@ -6,10 +6,9 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.6.2",
+    version: "1.6.3",
     refreshMs: 5 * 60 * 1000,
-    requestTimeoutMs: 12000,
-    localTimetableUpdated: "03.09.2026"
+    requestTimeoutMs: 12000
   });
 
   const TIMETABLE_VIEWS = Object.freeze({
@@ -21,6 +20,11 @@
     Permanent: "Stálý rozvrh",
     Actual: "Přehled tohoto týdne",
     Next: "Přehled příštího týdne"
+  });
+  const SETTINGS_TIMETABLE_VIEWS = Object.freeze({
+    Permanent: "Stálý",
+    Actual: "Tento Týden",
+    Next: "Příští Týden"
   });
   const TIMETABLE_VIEW_KEYS = Object.keys(TIMETABLE_VIEWS);
   const classApi = (type) =>
@@ -654,42 +658,21 @@
     $("dotTt").className = "status-dot " + classMode;
 
     if (state.syncState === "loading") {
-      setText("statusClass", "Ověřuji online změny");
-      setText("statusTeacher", "Ověřuji online změny");
-      setText("statusHint", "Ověřuji Bakaláře. Lokální rozvrh čeká pouze jako nouzová záloha.");
+      setText("statusClass", "Ověřuji Online Změny");
+      setText("statusTeacher", "Ověřuji Online Změny");
       return;
     }
 
-    const selectedLabel = timetableViewLabel();
-    let classStatus = "Lokální nouzový fallback";
+    const selectedLabel = SETTINGS_TIMETABLE_VIEWS[state.classView] || SETTINGS_TIMETABLE_VIEWS.Actual;
+    let classStatus = "Lokální Nouzový Režim";
     if (state.classOnline) {
-      classStatus = selectedLabel + " · online";
+      classStatus = selectedLabel + " · Online";
     } else if (state.classBaseOnline) {
-      classStatus = selectedLabel + " nedostupný · stálý online";
+      classStatus = selectedLabel + " Nedostupný · Stálý Online";
     }
 
     setText("statusClass", classStatus);
-    setText("statusTeacher", state.teacherOnline ? "Tento týden · online" : "Lokální nouzový fallback");
-
-    if (state.classOnline && state.actualOnline && state.teacherOnline) {
-      setText(
-        "statusHint",
-        "Všechna aktivní data se načítají z Bakalářů. Lokální snapshot z " +
-          CONFIG.localTimetableUpdated + " zůstává jen pro případ výpadku."
-      );
-    } else if (state.classBaseOnline || state.classSelectedOnline || state.actualOnline || state.teacherOnline) {
-      setText(
-        "statusHint",
-        "Část online zdrojů právě neodpovídá. Chybějící data kryje nouzový snapshot z " +
-          CONFIG.localTimetableUpdated + "."
-      );
-    } else {
-      setText(
-        "statusHint",
-        "Bakaláři právě neodpovídají. Dashboard běží z nouzového lokálního rozvrhu z " +
-          CONFIG.localTimetableUpdated + "."
-      );
-    }
+    setText("statusTeacher", state.teacherOnline ? "Tento Týden · Online" : "Lokální Nouzový Režim");
   }
 
   const tooltip = $("ttTooltip");
@@ -1229,6 +1212,12 @@
     badge.textContent = text;
   }
 
+  function setDailyDetail(text) {
+    const detail = $("daylabel");
+    detail.textContent = text;
+    detail.classList.toggle("hidden", !text);
+  }
+
   function createTimelineSegment(kind, startMin, endMin, title) {
     const segment = document.createElement("div");
     segment.className = "timeline-segment " + kind;
@@ -1329,7 +1318,7 @@
   function setDailyEmpty(text, detail) {
     setDailyBadge("free", "Volno");
     setText("dailyText", text);
-    setText("daylabel", detail);
+    setDailyDetail(detail);
     setText("dailyDebug", "0 hodin");
     setText("dayStartText", "—");
     setText("dayEndText", "—");
@@ -1371,18 +1360,14 @@
     if (nowMin < firstTime.startMin) {
       setDailyBadge("", "Před výukou");
       setText("dailyText", "První hodina: " + formatLesson(lessons[firstIndex]));
-      setText(
-        "daylabel",
-        "Začíná v " + CLASS_TIMES[firstIndex].start + " · dnes " + activeIndexes.length + " hodin"
-      );
+      setDailyDetail("");
       return;
     }
 
     if (nowMin > lastTime.endMin) {
       setDailyBadge("free", "");
       setText("dailyText", "Dnešní výuka skončila.");
-      setText(
-        "daylabel",
+      setDailyDetail(
         "Výuka probíhala " + CLASS_TIMES[firstIndex].start + "–" +
           CLASS_TIMES[lastIndex].end + " · " + activeIndexes.length + " hodin"
       );
@@ -1398,8 +1383,7 @@
       const nextIndex = activeIndexes.find((candidate) => candidate > currentIndex);
       setDailyBadge("", "Probíhá");
       setText("dailyText", (currentIndex + 1) + ". hodina · " + formatLesson(lessons[currentIndex]));
-      setText(
-        "daylabel",
+      setDailyDetail(
         CLASS_TIMES[currentIndex].start + "–" + CLASS_TIMES[currentIndex].end +
           (typeof nextIndex === "number" ? " · další " + formatLesson(lessons[nextIndex]) : " · poslední hodina")
       );
@@ -1413,8 +1397,7 @@
       const isLunch = nowMin >= LUNCH_START && nowMin < LUNCH_END;
       setDailyBadge(isLunch ? "lunch" : "", isLunch ? "Oběd" : "Pauza");
       setText("dailyText", isLunch ? "Obědová pauza" : "Pauza mezi hodinami");
-      setText(
-        "daylabel",
+      setDailyDetail(
         "Další: " + formatLesson(lessons[nextIndex]) + " v " + CLASS_TIMES[nextIndex].start
       );
       return;
@@ -1422,8 +1405,7 @@
 
     setDailyBadge("free", "");
     setText("dailyText", "Dnešní výuka skončila.");
-    setText(
-      "daylabel",
+    setDailyDetail(
       "Výuka probíhala " + CLASS_TIMES[firstIndex].start + "–" +
         CLASS_TIMES[lastIndex].end + " · " + activeIndexes.length + " hodin"
     );
@@ -1451,14 +1433,18 @@
     return "Neznámá lokace";
   }
 
+  function setCafaState(main, detail = "") {
+    setText("cafaMain", main);
+    setText("cafaSub", detail);
+    $("cafaSub").classList.toggle("hidden", !detail);
+  }
+
   function updateCafaTracker(now) {
     const dayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    const source = state.teacherOnline ? "online" : "lokální nouzovka";
 
     if (!dayKey || !isSchoolDay(now)) {
-      setText("cafaMain", "He gone 😔");
-      setText("cafaSub", "Mimo školní den · " + source);
+      setCafaState("Dnes bez výuky", "Cáfa má podle rozvrhu volno.");
       scheduleSixSevenScan();
       return;
     }
@@ -1469,8 +1455,7 @@
       .filter((index) => index >= 0);
 
     if (!activeIndexes.length) {
-      setText("cafaMain", "He gone 😔");
-      setText("cafaSub", dayLabelCZ(dayKey) + " · momentálně neučí · " + source);
+      setCafaState("Dnes bez naplánované výuky", "Cáfa má podle rozvrhu volno.");
       scheduleSixSevenScan();
       return;
     }
@@ -1478,11 +1463,7 @@
     const firstIndex = activeIndexes[0];
     const lastIndex = activeIndexes[activeIndexes.length - 1];
     if (nowMin < TEACHER_TIMES_MIN[firstIndex].startMin) {
-      setText("cafaMain", "He is getting ready 😎");
-      setText(
-        "cafaSub",
-        "První hodina " + TEACHER_TIMES[firstIndex].start + " · " + source
-      );
+      setCafaState("Výuka ještě nezačala");
       scheduleSixSevenScan();
       return;
     }
@@ -1492,22 +1473,19 @@
       if (nowMin < time.startMin || nowMin > time.endMin) continue;
       const current = lessons[index];
       if (current && current.subj) {
-        setText("cafaMain", formatTrackerLesson(current));
-        setText(
-          "cafaSub",
-          "Hodina " + (index + 1) + " · " +
-            TEACHER_TIMES[index].start + "–" + TEACHER_TIMES[index].end +
-            " · " + source
+        setCafaState(
+          formatTrackerLesson(current),
+          (index + 1) + ". hodina · " +
+            TEACHER_TIMES[index].start + "–" + TEACHER_TIMES[index].end
         );
       } else {
         const nextIndex = activeIndexes.find((candidate) => candidate > index);
-        setText("cafaMain", "KašpárnaSeek 👀");
-        setText(
-          "cafaSub",
+        setCafaState(
+          "Pauza mezi hodinami",
           typeof nextIndex === "number"
             ? "Další: " + formatTrackerLesson(lessons[nextIndex]) +
-                " · " + TEACHER_TIMES[nextIndex].start + " · " + source
-            : "Ve škole, ale bez aktivní hodiny · " + source
+                " v " + TEACHER_TIMES[nextIndex].start
+            : "Momentálně bez aktivní hodiny."
         );
       }
       scheduleSixSevenScan();
@@ -1522,24 +1500,22 @@
       const nextIndex = activeIndexes.find(
         (index) => TEACHER_TIMES_MIN[index].startMin > nowMin
       );
-      setText("cafaMain", "KašpárnaSeek 👀");
       if (typeof nextIndex === "number") {
         const previous = typeof previousIndex === "number"
           ? "Naposledy: " + formatTrackerLesson(lessons[previousIndex]) + " · "
           : "";
-        setText(
-          "cafaSub",
-          previous + "další " + TEACHER_TIMES[nextIndex].start + " · " + source
+        setCafaState(
+          "Pauza mezi hodinami",
+          previous + "další v " + TEACHER_TIMES[nextIndex].start
         );
       } else {
-        setText("cafaSub", "Ještě může být ve škole · " + source);
+        setCafaState("Dnešní výuka skončila", "Cáfa má pro dnešek klid.");
       }
       scheduleSixSevenScan();
       return;
     }
 
-    setText("cafaMain", "Cáfa se skrývá ve stínech 😎");
-    setText("cafaSub", "Mimo školu · " + source);
+    setCafaState("Dnešní výuka skončila", "Cáfa má pro dnešek klid.");
     scheduleSixSevenScan();
   }
 

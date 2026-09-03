@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0b0b0f">
   <title>School Progress · DE4A</title>
   <link rel="icon" type="image/png" href="./favicon1.png?v=2">
-  <link rel="stylesheet" href="./styles.css?v=1.6.2">
-  <script src="./script.js?v=1.6.2" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=1.6.3">
+  <script src="./script.js?v=1.6.3" defer></script>
 </head>
 <body class="theme-dark">
   <div class="app-shell">
@@ -92,7 +92,6 @@
           <span><small>Cáfa Tracker</small><strong id="statusTeacher">Připojuji…</strong></span>
         </div>
       </div>
-      <p class="status-note" id="statusHint">Lokální data jsou připravena, ověřuji online změny.</p>
     </section>
 
     <main>
@@ -179,7 +178,7 @@
           <section id="cafaBlock" class="surface side-card tracker-card" aria-labelledby="cafaTitle">
             <div class="tracker-label" id="cafaTitle">Cáfa Tracker</div>
             <div class="tracker-state" id="cafaMain">Načítání…</div>
-            <div class="tracker-meta" id="cafaSub">—</div>
+            <div class="tracker-meta hidden" id="cafaSub"></div>
           </section>
         </aside>
       </div>
@@ -210,9 +209,9 @@
 
       <section id="timetableBlock" class="surface timetable-panel" aria-labelledby="timetableTitle">
         <div class="section-heading timetable-heading">
-          <div>
-            <p class="section-kicker" id="timetableKicker">Přehled tohoto týdne</p>
+          <div class="timetable-title-block">
             <h2 id="timetableTitle">Rozvrh</h2>
+            <p class="section-kicker" id="timetableKicker">Přehled tohoto týdne</p>
           </div>
           <div class="timetable-toolbar">
             <div class="timetable-view-switch" role="group" aria-label="Zobrazení rozvrhu">
@@ -243,7 +242,7 @@
     <footer class="footer">
       <span>Created by Johnny Hotovost Corporation, LLC</span>
       <span class="footer-separator">•</span>
-      <span>Version <span id="verText">1.6.2</span></span>
+      <span>Version <span id="verText">1.6.3</span></span>
       <span class="footer-separator">•</span>
       <a href="https://ko-fi.com/johnny74802" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>
     </footer>
