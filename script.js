@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.5.1",
+    version: "1.5.2",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000,
     localTimetableUpdated: "03.09.2026"
@@ -430,12 +430,12 @@
   async function loadMinecraftSplash() {
     const target = $("mcSplash");
     const fallback = [
-      "Now with a working local timetable!",
-      "DE4A final boss unlocked",
-      "Suplování detected!",
-      "Bakaláři moment",
-      "Touch grass after class",
-      "Raw-Time supremacy"
+      "DE4A: final year unlocked.",
+      "Bakaláři moment.",
+      "Touch grass after class.",
+      "Maturita loading…",
+      "Local timetable. Production-grade trust issues.",
+      "School Progress — allegedly functional."
     ];
     try {
       const response = await fetch("./MinecraftTextSource.txt?ts=" + Date.now(), {
@@ -1402,7 +1402,6 @@
   }
 
   function boot() {
-    setText("classChip", CONFIG.className);
     setText("verText", CONFIG.version);
     initSettings();
     updateSourceStatus();
