@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#090d14">
   <title>School Progress · DE4A</title>
   <link rel="icon" type="image/png" href="./favicon1.png?v=2">
-  <link rel="stylesheet" href="./styles.css?v=1.5.0">
-  <script src="./script.js?v=1.5.0" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=1.5.1">
+  <script src="./script.js?v=1.5.1" defer></script>
 </head>
 <body class="theme-dark">
   <div class="app-shell">
@@ -96,63 +96,72 @@
     </section>
 
     <main>
-      <section id="dailyBlock" class="surface now-card">
-        <div class="now-copy">
-          <div class="now-topline">
-            <span class="section-kicker">Právě teď</span>
-            <span class="badge" id="dailyBadge">Rozvrh</span>
-          </div>
-          <h2 id="dailyText">Načítám dnešní výuku…</h2>
-          <p id="daylabel" class="now-meta">—</p>
-        </div>
-        <div class="now-progress">
-          <div class="progress-track progress-track-large" aria-hidden="true">
-            <div class="progress-fill" id="daybar"></div>
-          </div>
-          <p id="dailyDebug" class="microcopy">—</p>
-        </div>
-      </section>
-
       <div class="main-layout">
-        <section class="surface progress-panel" aria-labelledby="progressTitle">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">Časová osa</p>
-              <h2 id="progressTitle">Jak moc je cooked školní rok</h2>
+        <div class="time-columns" aria-label="Průběh školního roku">
+          <section class="time-stack" aria-labelledby="realTimeTitle">
+            <div class="column-heading column-heading-standalone">
+              <h2 id="realTimeTitle">Real-Time</h2>
+              <small>Kalendářní čas</small>
             </div>
-            <span class="subtle-chip">2026 / 2027</span>
-          </div>
 
-          <div class="time-columns">
-            <article class="time-column">
-              <div class="column-heading">
-                <span>Real-Time</span>
-                <small>Kalendářní čas</small>
-              </div>
-              <div class="metric-list">
-                <div class="metric"><div class="metric-line"><span>Týden</span><strong id="rt-week-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="rt-week"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Měsíc</span><strong id="rt-month-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="rt-month"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Školní rok</span><strong id="rt-year-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="rt-year"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Celkem</span><strong id="rt-total-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="rt-total"></div></div></div>
-              </div>
-              <div class="maturita-card"><span>Maturita</span><strong id="rt-maturita-label">—</strong></div>
+            <article class="surface metric-card">
+              <h3>Týden</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="rt-week"></div></div>
+              <p id="rt-week-label" class="metric-value">—</p>
             </article>
+            <article class="surface metric-card">
+              <h3>Měsíc</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="rt-month"></div></div>
+              <p id="rt-month-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card">
+              <h3>Školní rok</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="rt-year"></div></div>
+              <p id="rt-year-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card">
+              <h3>Celkem</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="rt-total"></div></div>
+              <p id="rt-total-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card metric-card-maturita">
+              <h3>Maturita</h3>
+              <p id="rt-maturita-label" class="metric-value">—</p>
+            </article>
+          </section>
 
-            <article class="time-column">
-              <div class="column-heading">
-                <span>Raw-Time</span>
-                <small>Jen školní dny</small>
-              </div>
-              <div class="metric-list">
-                <div class="metric"><div class="metric-line"><span>Týden</span><strong id="raw-week-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="raw-week"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Měsíc</span><strong id="raw-month-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="raw-month"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Školní rok</span><strong id="raw-year-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="raw-year"></div></div></div>
-                <div class="metric"><div class="metric-line"><span>Celkem</span><strong id="raw-total-label">—</strong></div><div class="progress-track"><div class="progress-fill" id="raw-total"></div></div></div>
-              </div>
-              <div class="maturita-card"><span>Maturita</span><strong id="raw-maturita-label">—</strong></div>
+          <section class="time-stack" aria-labelledby="rawTimeTitle">
+            <div class="column-heading column-heading-standalone">
+              <h2 id="rawTimeTitle">Raw-Time</h2>
+              <small>Jen školní dny</small>
+            </div>
+
+            <article class="surface metric-card">
+              <h3>Týden</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="raw-week"></div></div>
+              <p id="raw-week-label" class="metric-value">—</p>
             </article>
-          </div>
-        </section>
+            <article class="surface metric-card">
+              <h3>Měsíc</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="raw-month"></div></div>
+              <p id="raw-month-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card">
+              <h3>Školní rok</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="raw-year"></div></div>
+              <p id="raw-year-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card">
+              <h3>Celkem</h3>
+              <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="raw-total"></div></div>
+              <p id="raw-total-label" class="metric-value">—</p>
+            </article>
+            <article class="surface metric-card metric-card-maturita">
+              <h3>Maturita</h3>
+              <p id="raw-maturita-label" class="metric-value">—</p>
+            </article>
+          </section>
+        </div>
 
         <aside id="addonPanel" class="side-column">
           <section id="eventsBlock" class="surface side-card" aria-labelledby="eventsTitle">
@@ -175,6 +184,23 @@
           </section>
         </aside>
       </div>
+
+      <section id="dailyBlock" class="surface now-card">
+        <div class="now-copy">
+          <div class="now-topline">
+            <span class="section-kicker">Právě teď</span>
+            <span class="badge" id="dailyBadge">Rozvrh</span>
+          </div>
+          <h2 id="dailyText">Načítám dnešní výuku…</h2>
+          <p id="daylabel" class="now-meta">—</p>
+        </div>
+        <div class="now-progress">
+          <div class="progress-track progress-track-large" aria-hidden="true">
+            <div class="progress-fill" id="daybar"></div>
+          </div>
+          <p id="dailyDebug" class="microcopy">—</p>
+        </div>
+      </section>
 
       <section id="timetableBlock" class="surface timetable-panel" aria-labelledby="timetableTitle">
         <div class="section-heading timetable-heading">
@@ -202,7 +228,7 @@
     <footer class="footer">
       <span>Created by Johnny Hotovost Corporation, LLC</span>
       <span class="footer-separator">•</span>
-      <span>Version <span id="verText">1.5.0</span></span>
+      <span>Version <span id="verText">1.5.1</span></span>
       <span class="footer-separator">•</span>
       <a href="https://ko-fi.com/johnny74802" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>
     </footer>
