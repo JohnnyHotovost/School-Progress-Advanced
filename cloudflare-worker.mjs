@@ -1,10 +1,10 @@
-// Cloudflare Worker - Bakalari timetable API (v8)
+// Cloudflare Worker - Bakalari timetable API (v9)
 //
 // Class endpoints support the permanent, current-week and next-week views.
 // The teacher endpoint is intentionally limited to the current week so the
 // tracker reflects Cafourek's actual schedule and substitutions.
 
-const VERSION = "v8";
+const VERSION = "v9";
 const BAKALARI_BASE = "https://1kspa-kladno.bakalari.cz";
 const DEFAULT_TYPE = "Actual";
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -180,6 +180,7 @@ async function handleTimetable(url) {
     days: parsed.days,
     marks: parsed.marks,
     events: parsed.events,
+    blocks: parsed.blocks,
     parser: parsed.parser
   }, 200, cacheHeaders(type));
 }
@@ -282,6 +283,7 @@ function parseEmbeddedTimetable(data, { mode }) {
   const cellParts = createCellParts(times.length);
   const marks = [];
   const events = [];
+  const blocks = [];
   const parser = createParser("embedded-timetableData", mode);
   const valid = arrayValue(data?.Days).length > 0 && times.length > 0;
   if (!valid) parser.warnings.push("Embedded timetableData does not contain days or hours");
@@ -298,6 +300,83 @@ function parseEmbeddedTimetable(data, { mode }) {
     if (parts.length) parser.stats.merged += 1;
     parts.push(lesson);
     parser.stats.assigned += 1;
+  };
+
+  const addSpecialBlock = ({
+    dayKey,
+    date,
+    begin,
+    end,
+    code,
+    name,
+    info,
+    color,
+    source
+  }) => {
+    const blockName = cleanText(name) || cleanText(code) || "Mimořádná událost";
+    const blockCode = cleanText(code);
+    const blockInfo = cleanText(info);
+    const indexes = overlappingHourIndexes(begin, end, times);
+    if (!indexes.length) {
+      parser.stats.skipped += 1;
+      return false;
+    }
+
+    const firstIndex = indexes[0];
+    const lastIndex = indexes[indexes.length - 1];
+    const normalizedBegin = stripSeconds(begin) || times[firstIndex]?.start || "";
+    const normalizedEnd = stripSeconds(end) || times[lastIndex]?.end || "";
+    const subject = blockName;
+
+    for (const hourIndex of indexes) {
+      addPart(dayKey, hourIndex, {
+        subj: subject,
+        room: "",
+        teacher: "",
+        class: "",
+        note: blockInfo || blockName
+      });
+      addMark(marks, {
+        day: dayKey,
+        idx: hourIndex,
+        type: "event",
+        title: blockName,
+        code: blockCode,
+        room: "",
+        note: blockInfo,
+        source
+      });
+    }
+
+    addBlock(blocks, {
+      day: dayKey,
+      dayKey,
+      dayText: DAY_TEXT[dayKey],
+      date: cleanText(date),
+      startIdx: firstIndex,
+      endIdx: lastIndex,
+      begin: normalizedBegin,
+      end: normalizedEnd,
+      code: blockCode,
+      name: blockName,
+      info: blockInfo,
+      color: normalizeRgb(color),
+      type: "event",
+      source
+    });
+    addEvent(events, {
+      dayKey,
+      dayText: DAY_TEXT[dayKey],
+      date: cleanText(date),
+      code: blockCode,
+      name: blockName,
+      begin: normalizedBegin,
+      end: normalizedEnd,
+      info: blockInfo,
+      type: "event",
+      source
+    });
+    return true;
   };
 
   for (const day of arrayValue(data?.Days)) {
@@ -374,45 +453,66 @@ function parseEmbeddedTimetable(data, { mode }) {
     for (const guard of guards) {
       const name = cleanText(guard?.Name) || cleanText(guard?.Abbrev) || "Akce";
       const info = textValue(guard?.Info);
-      const indexes = overlappingHourIndexes(guard?.Begin, guard?.End, times);
-      if (!indexes.length) {
-        parser.stats.skipped += 1;
-        continue;
-      }
-      parser.stats.guards += 1;
-
-      for (const hourIndex of indexes) {
-        addPart(dayKey, hourIndex, {
-          subj: name,
-          room: "",
-          teacher: "",
-          class: "",
-          note: info
-        });
-        addMark(marks, {
-          day: dayKey,
-          idx: hourIndex,
-          type: "event",
-          title: "Akce",
-          room: "",
-          note: info || name
-        });
-      }
-
-      addEvent(events, {
+      const added = addSpecialBlock({
         dayKey,
-        dayText: DAY_TEXT[dayKey],
+        date: day?.Date,
+        code: guard?.Abbrev,
         name,
-        begin: stripSeconds(guard?.Begin),
-        end: stripSeconds(guard?.End),
-        info
+        begin: guard?.Begin,
+        end: guard?.End,
+        info,
+        color: guard?.Color,
+        source: "guard"
       });
+      if (added) parser.stats.guards += 1;
+    }
+
+    for (const absence of arrayValue(day?.Absences)) {
+      const details = parseTooltipDetails(absence?.TooltipDetails);
+      const kind = absence?.AbsentKind || {};
+      const code = cleanText(kind?.Abbrev) || cleanText(details?.absentinfo);
+      const name = cleanText(kind?.Name) || cleanText(details?.removedinfo) || code;
+      const info = joinText([
+        absence?.Info,
+        absence?.Reason,
+        absence?.Note,
+        details?.description,
+        details?.info
+      ]);
+      const added = addSpecialBlock({
+        dayKey,
+        date: day?.Date,
+        begin: absence?.Begin,
+        end: absence?.End,
+        code,
+        name,
+        info,
+        color: kind?.Color,
+        source: "absence"
+      });
+      if (added) parser.stats.absences += 1;
+    }
+
+    if (day?.DayOff) {
+      const added = addSpecialBlock({
+        dayKey,
+        date: day?.Date,
+        begin: times[0]?.start,
+        end: times[times.length - 1]?.end,
+        code: "",
+        name: cleanText(day?.DayOffName) || "Volný den",
+        info: "",
+        color: "",
+        source: "day-off"
+      });
+      if (added) parser.stats.dayOffs += 1;
     }
   }
 
   const days = collapseCellParts(cellParts);
   parser.stats.marks = marks.length;
   parser.stats.events = events.length;
+  parser.stats.blocks = blocks.length;
 
   return {
     valid,
@@ -420,6 +520,7 @@ function parseEmbeddedTimetable(data, { mode }) {
     days,
     marks,
     events,
+    blocks,
     parser
   };
 }
@@ -429,6 +530,7 @@ function parseLegacyDataDetails(html, { mode }) {
   const cellParts = createCellParts(times.length);
   const marks = [];
   const events = [];
+  const blocks = [];
   const parser = createParser("legacy-data-detail", mode);
   const detailPattern = /\bdata-detail\s*=\s*(["'])([\s\S]*?)\1/gi;
   let match;
@@ -489,7 +591,7 @@ function parseLegacyDataDetails(html, { mode }) {
   const valid = parser.stats.atoms > 0;
   if (!valid) parser.warnings.push("No embedded timetableData or legacy data-detail records found");
 
-  return { valid, times, days, marks, events, parser };
+  return { valid, times, days, marks, events, blocks, parser };
 }
 
 function parseTimes(hours) {
@@ -678,6 +780,28 @@ function addEvent(events, event) {
   if (!exists) events.push({ ...event });
 }
 
+function addBlock(blocks, block) {
+  const signature = [
+    block.dayKey,
+    block.startIdx,
+    block.endIdx,
+    block.code,
+    block.name,
+    block.begin,
+    block.end
+  ].join("|");
+  const exists = blocks.some((item) => [
+    item.dayKey,
+    item.startIdx,
+    item.endIdx,
+    item.code,
+    item.name,
+    item.begin,
+    item.end
+  ].join("|") === signature);
+  if (!exists) blocks.push({ ...block });
+}
+
 function markTitle(type) {
   if (type === "event") return "Akce";
   if (type === "cancel") return "Odpadlo";
@@ -697,9 +821,12 @@ function createParser(format, mode) {
       assigned: 0,
       merged: 0,
       guards: 0,
+      absences: 0,
+      dayOffs: 0,
       removed: 0,
       marks: 0,
       events: 0,
+      blocks: 0,
       skipped: 0
     }
   };
@@ -742,6 +869,25 @@ function textValue(value) {
     if (preferred.length) return joinText(preferred);
   }
   return "";
+}
+
+function parseTooltipDetails(value) {
+  if (!value || typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(decodeHtml(value));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeRgb(value) {
+  const matches = cleanText(value).match(/\d{1,3}/g);
+  if (!matches || matches.length < 3) return "";
+  return matches
+    .slice(0, 3)
+    .map((part) => String(Math.max(0, Math.min(255, Number(part)))))
+    .join(", ");
 }
 
 function cleanText(value) {
