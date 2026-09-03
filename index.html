@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0b0b0f">
   <title>School Progress · DE4A</title>
   <link rel="icon" type="image/png" href="./favicon1.png?v=2">
-  <link rel="stylesheet" href="./styles.css?v=1.5.2">
-  <script src="./script.js?v=1.5.2" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=1.6.0">
+  <script src="./script.js?v=1.6.0" defer></script>
 </head>
 <body class="theme-dark">
   <div class="app-shell">
@@ -67,6 +67,15 @@
             <input type="range" id="uiScaleRange" min="85" max="120" step="1" value="100">
             <strong id="uiScaleValue">100%</strong>
           </span>
+        </label>
+
+        <label class="control-field transparency-control">
+          <span>Průhlednost karet</span>
+          <span class="range-line">
+            <input type="range" id="cardTransparencyRange" min="0" max="60" step="1" value="26">
+            <strong id="cardTransparencyValue">26%</strong>
+          </span>
+          <small>0 % = neprůhledné</small>
         </label>
 
         <div class="visibility-controls" aria-label="Viditelnost sekcí">
@@ -183,17 +192,24 @@
       <section id="dailyBlock" class="surface now-card">
         <div class="now-copy">
           <div class="now-topline">
-            <span class="section-kicker">Právě teď</span>
-            <span class="badge" id="dailyBadge">Rozvrh</span>
+            <span class="section-kicker">Daily Progress</span>
+            <span class="badge" id="dailyBadge">Načítám</span>
           </div>
           <h2 id="dailyText">Načítám dnešní výuku…</h2>
           <p id="daylabel" class="now-meta">—</p>
         </div>
-        <div class="now-progress">
-          <div class="progress-track progress-track-large" aria-hidden="true">
-            <div class="progress-fill" id="daybar"></div>
+        <div class="daily-schedule">
+          <div class="daily-time-meta">
+            <span class="daily-time-edge"><small>Začátek</small><strong id="dayStartText">—</strong></span>
+            <span id="dailyDebug" class="daily-count">—</span>
+            <span class="daily-time-edge daily-time-end"><small>Konec</small><strong id="dayEndText">—</strong></span>
           </div>
-          <p id="dailyDebug" class="microcopy">—</p>
+          <div id="dayTimeline" class="day-timeline" role="img" aria-label="Časová osa dnešní výuky"></div>
+          <div class="timeline-legend" aria-hidden="true">
+            <span><i class="timeline-key completed"></i>Hotovo</span>
+            <span><i class="timeline-key current"></i>Právě probíhá</span>
+            <span><i class="timeline-key lunch"></i>Oběd 12:20–12:50</span>
+          </div>
         </div>
       </section>
 
@@ -203,10 +219,17 @@
             <p class="section-kicker">DE4A · týdenní přehled</p>
             <h2 id="timetableTitle">Rozvrh</h2>
           </div>
-          <span class="mini-source" id="ttUpdated">
-            <span id="dotTt" class="status-dot"></span>
-            <span id="ttUpdatedText">Aktualizováno: —</span>
-          </span>
+          <div class="timetable-toolbar">
+            <div class="timetable-view-switch" role="group" aria-label="Zobrazení rozvrhu">
+              <button class="timetable-view-btn" type="button" data-timetable-view="Permanent" aria-pressed="false">Stálý</button>
+              <button class="timetable-view-btn active" type="button" data-timetable-view="Actual" aria-pressed="true">Tento týden</button>
+              <button class="timetable-view-btn" type="button" data-timetable-view="Next" aria-pressed="false">Příští týden</button>
+            </div>
+            <span class="mini-source" id="ttUpdated">
+              <span id="dotTt" class="status-dot"></span>
+              <span id="ttUpdatedText">Aktualizováno: —</span>
+            </span>
+          </div>
         </div>
         <div class="timetable-scroll" tabindex="0" aria-label="Týdenní rozvrh, na menších obrazovkách lze posouvat vodorovně">
           <div class="timetable-grid" id="ttGrid" style="--cols: 7"></div>
@@ -215,6 +238,8 @@
           <span><i class="legend-dot event"></i>Akce</span>
           <span><i class="legend-dot subst"></i>Suplování</span>
           <span><i class="legend-dot cancel"></i>Odpadlo</span>
+          <span><i class="legend-dot today"></i>Dnešní den</span>
+          <span><i class="legend-check">✓</i>Uplynulo</span>
           <span><i class="legend-ring"></i>Právě probíhá</span>
         </div>
       </section>
@@ -223,7 +248,7 @@
     <footer class="footer">
       <span>Created by Johnny Hotovost Corporation, LLC</span>
       <span class="footer-separator">•</span>
-      <span>Version <span id="verText">1.5.2</span></span>
+      <span>Version <span id="verText">1.6.0</span></span>
       <span class="footer-separator">•</span>
       <a href="https://ko-fi.com/johnny74802" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>
     </footer>
