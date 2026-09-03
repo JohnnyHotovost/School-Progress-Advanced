@@ -6,14 +6,21 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.5.2",
+    version: "1.6.0",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000,
     localTimetableUpdated: "03.09.2026"
   });
 
-  const CLASS_API =
-    CONFIG.workerBase + "/api/timetable?class=" + encodeURIComponent(CONFIG.classId) + "&type=Actual";
+  const TIMETABLE_VIEWS = Object.freeze({
+    Permanent: "Stálý",
+    Actual: "Tento týden",
+    Next: "Příští týden"
+  });
+  const TIMETABLE_VIEW_KEYS = Object.keys(TIMETABLE_VIEWS);
+  const classApi = (type) =>
+    CONFIG.workerBase + "/api/timetable?class=" + encodeURIComponent(CONFIG.classId) +
+      "&type=" + encodeURIComponent(type);
   const TEACHER_API =
     CONFIG.workerBase + "/api/timetable?teacher=" + encodeURIComponent(CONFIG.teacherId) + "&type=Actual";
 
@@ -234,13 +241,20 @@
   const state = {
     classDays: cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length),
     classMarks: [],
-    classEvents: [],
+    classView: "Actual",
+    classBaseOnline: false,
+    classSelectedOnline: false,
     classOnline: false,
+    actualDays: cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length),
+    actualMarks: [],
+    actualEvents: [],
+    actualOnline: false,
     teacherDays: cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length),
     teacherOnline: false,
     syncState: "loading",
     lastSync: null,
-    syncing: false
+    syncing: false,
+    syncSequence: 0
   };
 
   function localDate(year, month, day) {
@@ -489,6 +503,17 @@
     localStorage.setItem("sp_ui_scale", String(value));
   }
 
+  function applyCardTransparency(percent) {
+    const value = Math.max(0, Math.min(60, Number(percent) || 0));
+    const surfaceOpacity = 1 - value / 100;
+    const strongOpacity = 1 - (value * 0.66) / 100;
+    document.documentElement.style.setProperty("--surface-opacity", surfaceOpacity.toFixed(2));
+    document.documentElement.style.setProperty("--surface-strong-opacity", strongOpacity.toFixed(2));
+    $("cardTransparencyRange").value = String(value);
+    $("cardTransparencyValue").textContent = value + "%";
+    localStorage.setItem("sp_card_transparency", String(value));
+  }
+
   function setSettingsOpen(open) {
     $("settingsPanel").classList.toggle("hidden", !open);
     $("settingsBtn").setAttribute("aria-expanded", String(open));
@@ -519,6 +544,9 @@
     $("themeSelect").addEventListener("change", (event) => applyTheme(event.target.value));
     $("modeSelect").addEventListener("change", (event) => applyTitleMode(event.target.value));
     $("uiScaleRange").addEventListener("input", (event) => applyUiScale(event.target.value));
+    $("cardTransparencyRange").addEventListener("input", (event) => {
+      applyCardTransparency(event.target.value);
+    });
 
     const toggles = [
       ["toggleDaily", "sp_toggle_daily"],
@@ -545,6 +573,7 @@
     applyTheme(localStorage.getItem("sp_theme") || "dark");
     applyTitleMode(localStorage.getItem("sp_mode") || "normal");
     applyUiScale(localStorage.getItem("sp_ui_scale") || "100");
+    applyCardTransparency(localStorage.getItem("sp_card_transparency") || "26");
     applyVisibility();
   }
 
@@ -554,10 +583,53 @@
     element.classList.add(mode);
   }
 
+  function timetableViewLabel(view = state.classView) {
+    return TIMETABLE_VIEWS[view] || TIMETABLE_VIEWS.Actual;
+  }
+
+  function setTimetableButtonsLoading(loading) {
+    document.querySelectorAll("[data-timetable-view]").forEach((button) => {
+      button.disabled = Boolean(loading);
+    });
+  }
+
+  function updateTimetableViewControls() {
+    document.querySelectorAll("[data-timetable-view]").forEach((button) => {
+      const active = button.dataset.timetableView === state.classView;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  async function setTimetableView(view) {
+    if (!TIMETABLE_VIEW_KEYS.includes(view) || view === state.classView) return;
+    state.classView = view;
+    localStorage.setItem("sp_timetable_view", view);
+    updateTimetableViewControls();
+    state.syncState = "loading";
+    setTimetableButtonsLoading(true);
+    updateSourceStatus();
+    await syncBackend();
+  }
+
+  function initTimetableViewSwitch() {
+    const saved = localStorage.getItem("sp_timetable_view");
+    state.classView = TIMETABLE_VIEW_KEYS.includes(saved) ? saved : "Actual";
+    updateTimetableViewControls();
+    document.querySelectorAll("[data-timetable-view]").forEach((button) => {
+      button.addEventListener("click", () => setTimetableView(button.dataset.timetableView));
+    });
+  }
+
   function updateSourceStatus() {
     const classMode = state.syncState === "loading"
       ? "loading"
       : state.classOnline
+        ? "online"
+        : "fallback";
+    const actualMode = state.syncState === "loading"
+      ? "loading"
+      : state.actualOnline && state.classBaseOnline
         ? "online"
         : "fallback";
     const teacherMode = state.syncState === "loading"
@@ -569,13 +641,13 @@
     setStatusMode($("headerSourcePill"), classMode);
     setStatusMode($("pillClass"), classMode);
     setStatusMode($("pillTeacher"), teacherMode);
-    setStatusMode($("pillInfo"), classMode);
+    setStatusMode($("pillInfo"), actualMode);
     setStatusMode($("ttUpdated"), classMode);
 
     $("headerSourceDot").className = "status-dot " + classMode;
     $("dotClass").className = "status-dot " + classMode;
     $("dotTeacher").className = "status-dot " + teacherMode;
-    $("dotInfo").className = "status-dot " + classMode;
+    $("dotInfo").className = "status-dot " + actualMode;
     $("dotTt").className = "status-dot " + classMode;
 
     if (state.syncState === "loading") {
@@ -583,34 +655,41 @@
       setText("statusClass", "Ověřuji online změny");
       setText("statusTeacher", "Ověřuji online změny");
       setText("infoSrc", "Načítání");
-      setText("statusHint", "Lokální data jsou připravena, ověřuji online změny.");
+      setText("statusHint", "Ověřuji Bakaláře. Lokální rozvrh čeká pouze jako nouzová záloha.");
       return;
     }
 
-    setText(
-      "headerSourceText",
-      state.classOnline ? CONFIG.className + " · online + lokální" : CONFIG.className + " · lokální"
-    );
-    setText(
-      "statusClass",
-      state.classOnline ? "Online změny + lokální základ" : "Lokální fallback"
-    );
-    setText(
-      "statusTeacher",
-      state.teacherOnline ? "Online změny + lokální základ" : "Lokální fallback"
-    );
-    setText("infoSrc", state.classOnline ? "Online" : "Lokální");
+    const selectedLabel = timetableViewLabel();
+    let classStatus = "Lokální nouzový fallback";
+    if (state.classOnline) {
+      classStatus = selectedLabel + " · online";
+    } else if (state.classBaseOnline) {
+      classStatus = selectedLabel + " nedostupný · stálý online";
+    } else if (state.classSelectedOnline) {
+      classStatus = selectedLabel + " online · nouzový základ";
+    }
 
-    if (state.classOnline && state.teacherOnline) {
+    setText("headerSourceText", CONFIG.className + " · " + (state.classOnline ? "online" : "nouzový režim"));
+    setText("statusClass", classStatus);
+    setText("statusTeacher", state.teacherOnline ? "Tento týden · online" : "Lokální nouzový fallback");
+    setText("infoSrc", state.actualOnline && state.classBaseOnline ? "Online" : "Nouzový režim");
+
+    if (state.classOnline && state.actualOnline && state.teacherOnline) {
       setText(
         "statusHint",
-        "Online změny jsou aktivní. Základ rozvrhu chrání lokální snapshot z " +
+        "Všechna aktivní data se načítají z Bakalářů. Lokální snapshot z " +
+          CONFIG.localTimetableUpdated + " zůstává jen pro případ výpadku."
+      );
+    } else if (state.classBaseOnline || state.classSelectedOnline || state.actualOnline || state.teacherOnline) {
+      setText(
+        "statusHint",
+        "Část online zdrojů právě neodpovídá. Chybějící data kryje nouzový snapshot z " +
           CONFIG.localTimetableUpdated + "."
       );
     } else {
       setText(
         "statusHint",
-        "Online zdroj není dostupný. Dashboard běží z lokálního rozvrhu z " +
+        "Bakaláři právě neodpovídají. Dashboard běží z nouzového lokálního rozvrhu z " +
           CONFIG.localTimetableUpdated + "."
       );
     }
@@ -680,6 +759,10 @@
     return state.classMarks.find((mark) => mark.day === dayKey && mark.idx === index) || null;
   }
 
+  function actualMarkForCell(dayKey, index) {
+    return state.actualMarks.find((mark) => mark.day === dayKey && mark.idx === index) || null;
+  }
+
   function mondayOfCurrentWeek(date) {
     const monday = new Date(date);
     const weekday = monday.getDay() || 7;
@@ -688,10 +771,39 @@
     return monday;
   }
 
-  function dateForDayIndex(index, now = new Date()) {
+  function dateForDayIndex(index, now = new Date(), weekOffset = 0) {
     const date = mondayOfCurrentWeek(now);
-    date.setDate(date.getDate() + index);
+    date.setDate(date.getDate() + index + weekOffset * 7);
     return date;
+  }
+
+  function timetableSourceDescription() {
+    if (state.classOnline) return "Bakaláři · " + timetableViewLabel();
+    if (state.classBaseOnline) return "Bakaláři · stálý nouzový pohled";
+    if (state.classSelectedOnline) return "Bakaláři + lokální nouzový základ";
+    return "Lokální nouzový rozvrh";
+  }
+
+  function isTimetableSlotPast(dayKey, index, now = new Date()) {
+    if (state.classView === "Next") return false;
+    const targetDay = DAY_KEYS.indexOf(dayKey) + 1;
+    const currentDay = now.getDay();
+    if (targetDay < 1) return false;
+    if (currentDay === 0 || currentDay === 6) return true;
+    if (targetDay < currentDay) return true;
+    if (targetDay > currentDay) return false;
+    const time = CLASS_TIMES_MIN[index];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    return Boolean(time && nowMin > time.endMin);
+  }
+
+  function isTimetableDayPast(dayKey, now = new Date()) {
+    if (state.classView === "Next") return false;
+    const targetDay = DAY_KEYS.indexOf(dayKey) + 1;
+    const currentDay = now.getDay();
+    if (targetDay < 1) return false;
+    if (currentDay === 0 || currentDay === 6) return true;
+    return targetDay < currentDay;
   }
 
   function appendTextElement(parent, tagName, className, value) {
@@ -704,6 +816,9 @@
 
   function renderTimetable() {
     const grid = $("ttGrid");
+    const now = new Date();
+    const todayKey = dayKeyFromDate(now);
+    const showCurrentWeekState = state.classView !== "Next";
     grid.style.setProperty("--cols", String(CLASS_TIMES.length));
     grid.replaceChildren();
 
@@ -724,7 +839,13 @@
     DAY_KEYS.forEach((dayKey, dayIndex) => {
       const day = document.createElement("div");
       day.className = "tt-day";
+      day.dataset.day = dayKey;
       day.textContent = DAY_LABELS[dayKey];
+      day.classList.toggle("tt-today", showCurrentWeekState && dayKey === todayKey);
+      day.classList.toggle(
+        "tt-past-day",
+        isTimetableDayPast(dayKey, now)
+      );
       grid.appendChild(day);
 
       for (let index = 0; index < CLASS_TIMES.length; index += 1) {
@@ -736,6 +857,8 @@
         cell.className = "tt-cell";
         cell.dataset.day = dayKey;
         cell.dataset.idx = String(index);
+        cell.classList.toggle("tt-today", showCurrentWeekState && dayKey === todayKey);
+        cell.classList.toggle("tt-past", isTimetableSlotPast(dayKey, index, now));
 
         if (!base && !mark) {
           cell.classList.add("tt-empty");
@@ -756,7 +879,11 @@
           type = "Odpadlo";
         }
 
-        const subject = base && base.subj ? base.subj : mark && mark.type === "event" ? "Akce školy" : "";
+        const subject = mark && mark.type === "event"
+          ? "Akce školy"
+          : base && base.subj
+            ? base.subj
+            : "";
         const room = (mark && mark.room) || (base && base.room) || "";
         const teacher = (base && base.teacher) || "";
         const group = (base && base.class) || "";
@@ -770,7 +897,7 @@
         appendTextElement(cell, "div", "tt-subject", shortSubject(subject, group) || "—");
         appendTextElement(cell, "div", "tt-teacher", teacher || type || " ");
 
-        const dayDate = dateForDayIndex(dayIndex);
+        const dayDate = dateForDayIndex(dayIndex, now, state.classView === "Next" ? 1 : 0);
         const data = {
           dayLabel: DAY_LABELS[dayKey],
           dateLong: formatDateCZ(dayDate),
@@ -782,7 +909,7 @@
           group,
           note,
           type,
-          source: state.classOnline ? "Bakaláři + lokální základ" : "Lokální rozvrh"
+          source: timetableSourceDescription()
         };
 
         cell.tabIndex = 0;
@@ -817,7 +944,7 @@
     setText(
       "ttUpdatedText",
       "Aktualizováno " + formatDateTimeCZ(updated) + " · " +
-        (state.classOnline ? "hybrid" : "lokálně")
+        timetableViewLabel() + " · " + (state.classOnline ? "online" : "nouzový režim")
     );
     updateTimetableNowHighlight();
     scheduleSixSevenScan();
@@ -827,16 +954,34 @@
     const now = new Date();
     const todayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
+    document.querySelectorAll("#ttGrid .tt-day[data-day]").forEach((day) => {
+      day.classList.toggle(
+        "tt-today",
+        state.classView !== "Next" && day.dataset.day === todayKey
+      );
+      day.classList.toggle("tt-past-day", isTimetableDayPast(day.dataset.day, now));
+    });
     document.querySelectorAll("#ttGrid .tt-cell[data-day][data-idx]").forEach((cell) => {
       const index = Number(cell.dataset.idx);
       const time = CLASS_TIMES_MIN[index];
       const active =
+        state.classView !== "Next" &&
         isSchoolDay(now) &&
         todayKey === cell.dataset.day &&
         time &&
         nowMin >= time.startMin &&
-        nowMin <= time.endMin;
+        nowMin <= time.endMin &&
+        !cell.classList.contains("tt-cancel") &&
+        !cell.classList.contains("tt-empty");
       cell.classList.toggle("tt-now", Boolean(active));
+      cell.classList.toggle(
+        "tt-today",
+        state.classView !== "Next" && cell.dataset.day === todayKey
+      );
+      cell.classList.toggle(
+        "tt-past",
+        !active && isTimetableSlotPast(cell.dataset.day, index, now)
+      );
     });
   }
 
@@ -865,7 +1010,7 @@
     const order = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5 };
 
     const events = dedupe(
-      Array.isArray(state.classEvents) ? state.classEvents : [],
+      Array.isArray(state.actualEvents) ? state.actualEvents : [],
       (event) =>
         [event.dayKey, event.name, event.begin, event.end, event.info].join("|")
     ).sort(
@@ -875,7 +1020,7 @@
     );
 
     const marks = dedupe(
-      Array.isArray(state.classMarks) ? state.classMarks : [],
+      Array.isArray(state.actualMarks) ? state.actualMarks : [],
       (mark) => [mark.day, mark.idx, mark.type, mark.note, mark.room].join("|")
     ).sort(
       (a, b) =>
@@ -916,22 +1061,24 @@
       empty.className = "empty-state";
       empty.textContent = state.syncState === "loading"
         ? "Ověřuji online změny…"
-        : state.classOnline
+        : state.actualOnline && state.classBaseOnline
           ? "Žádné změny ani události pro tento týden."
-          : "Online změny nejsou dostupné. Rozvrh dál funguje lokálně.";
+          : "Online změny nejsou dostupné. Zobrazuji nouzový stálý rozvrh.";
       list.appendChild(empty);
     }
     scheduleSixSevenScan();
   }
 
   function activeClassLesson(dayKey, index) {
-    const mark = markForCell(dayKey, index);
+    const mark = actualMarkForCell(dayKey, index);
     if (mark && mark.type === "cancel") return null;
-    const base = state.classDays[dayKey] && state.classDays[dayKey][index];
-    if (base && base.subj) return base;
     if (mark && mark.type === "event") {
-      return lesson("Akce školy", mark.room || "", "", "");
+      const eventLesson = lesson("Akce školy", mark.room || "", "", "");
+      eventLesson.note = mark.note || "";
+      return eventLesson;
     }
+    const base = state.actualDays[dayKey] && state.actualDays[dayKey][index];
+    if (base && base.subj) return base;
     return null;
   }
 
@@ -947,16 +1094,119 @@
     badge.textContent = text;
   }
 
+  function createTimelineSegment(kind, startMin, endMin, title) {
+    const segment = document.createElement("div");
+    segment.className = "timeline-segment " + kind;
+    segment.style.setProperty("--duration", String(Math.max(1, endMin - startMin)));
+    segment.title = title;
+    return segment;
+  }
+
+  function appendTimelineGap(timeline, startMin, endMin, nowMin) {
+    if (endMin <= startMin) return;
+    const cuts = [startMin];
+    if (LUNCH_START > startMin && LUNCH_START < endMin) cuts.push(LUNCH_START);
+    if (LUNCH_END > startMin && LUNCH_END < endMin) cuts.push(LUNCH_END);
+    cuts.push(endMin);
+    cuts.sort((a, b) => a - b);
+
+    for (let index = 0; index < cuts.length - 1; index += 1) {
+      const pieceStart = cuts[index];
+      const pieceEnd = cuts[index + 1];
+      const isLunch = pieceStart >= LUNCH_START && pieceEnd <= LUNCH_END;
+      const segment = createTimelineSegment(
+        isLunch ? "lunch" : "break",
+        pieceStart,
+        pieceEnd,
+        isLunch ? "Obědová pauza 12:20–12:50" : "Pauza"
+      );
+      if (pieceEnd < nowMin) segment.classList.add("elapsed-gap");
+      if (nowMin >= pieceStart && nowMin <= pieceEnd) segment.classList.add("current-gap");
+      if (isLunch) {
+        appendTextElement(segment, "strong", "", "Oběd");
+        appendTextElement(segment, "small", "", "12:20–12:50");
+      } else {
+        segment.setAttribute("aria-hidden", "true");
+      }
+      timeline.appendChild(segment);
+    }
+  }
+
+  function renderDayTimeline(lessons, activeIndexes, nowMin) {
+    const timeline = $("dayTimeline");
+    timeline.replaceChildren();
+    timeline.classList.remove("empty");
+
+    if (!activeIndexes.length) {
+      timeline.classList.add("empty");
+      timeline.textContent = "Dnes tu není co trackovat.";
+      timeline.setAttribute("aria-label", "Dnes bez výuky");
+      return;
+    }
+
+    const firstIndex = activeIndexes[0];
+    const lastIndex = activeIndexes[activeIndexes.length - 1];
+    const startMin = CLASS_TIMES_MIN[firstIndex].startMin;
+    const endMin = CLASS_TIMES_MIN[lastIndex].endMin;
+    let cursor = startMin;
+
+    activeIndexes.forEach((index) => {
+      const time = CLASS_TIMES_MIN[index];
+      appendTimelineGap(timeline, cursor, time.startMin, nowMin);
+      const status = nowMin > time.endMin
+        ? "completed"
+        : nowMin >= time.startMin && nowMin <= time.endMin
+          ? "current"
+          : "upcoming";
+      const shortName = shortSubject(lessons[index].subj, lessons[index].class || "") || "Výuka";
+      const segment = createTimelineSegment(
+        "lesson " + status,
+        time.startMin,
+        time.endMin,
+        (index + 1) + ". hodina · " + formatLesson(lessons[index]) + " · " +
+          CLASS_TIMES[index].start + "–" + CLASS_TIMES[index].end
+      );
+      appendTextElement(segment, "small", "", String(index + 1) + ".");
+      appendTextElement(segment, "strong", "", shortName);
+      timeline.appendChild(segment);
+      cursor = Math.max(cursor, time.endMin);
+    });
+    appendTimelineGap(timeline, cursor, endMin, nowMin);
+
+    if (nowMin >= startMin && nowMin <= endMin) {
+      const marker = document.createElement("span");
+      marker.className = "timeline-now-marker";
+      marker.style.setProperty(
+        "--marker-left",
+        clamp(((nowMin - startMin) / Math.max(1, endMin - startMin)) * 100).toFixed(2) + "%"
+      );
+      marker.setAttribute("aria-hidden", "true");
+      timeline.appendChild(marker);
+    }
+
+    timeline.setAttribute(
+      "aria-label",
+      activeIndexes.length + " hodin, výuka od " + CLASS_TIMES[firstIndex].start +
+        " do " + CLASS_TIMES[lastIndex].end + ", oběd 12:20 až 12:50"
+    );
+  }
+
+  function setDailyEmpty(text, detail) {
+    setDailyBadge("free", "Volno");
+    setText("dailyText", text);
+    setText("daylabel", detail);
+    setText("dailyDebug", "0 hodin");
+    setText("dayStartText", "—");
+    setText("dayEndText", "—");
+    renderDayTimeline([], [], 0);
+  }
+
   function updateDaily(now) {
     const dayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
     if (!dayKey || !isSchoolDay(now)) {
-      setDailyBadge("free", "Volno");
-      setText("dailyText", "Dnes bez výuky 😎");
-      setText("daylabel", "Další školní den si dashboard načte automaticky.");
-      setText("dailyDebug", formatWeekdayCZ(now));
-      setBar("daybar", 100);
+      setDailyEmpty("Dnes bez výuky 😎", "Daily Progress má taky nárok na volno.");
       return;
     }
 
@@ -966,11 +1216,7 @@
       .filter((index) => index >= 0);
 
     if (!activeIndexes.length) {
-      setDailyBadge("free", "Volno");
-      setText("dailyText", "Dnes bez výuky 😎");
-      setText("daylabel", "V rozvrhu pro dnešek nejsou žádné hodiny.");
-      setText("dailyDebug", formatWeekdayCZ(now));
-      setBar("daybar", 100);
+      setDailyEmpty("Dnes bez výuky 😎", "V aktuálním rozvrhu nejsou žádné hodiny.");
       return;
     }
 
@@ -978,55 +1224,50 @@
     const lastIndex = activeIndexes[activeIndexes.length - 1];
     const firstTime = CLASS_TIMES_MIN[firstIndex];
     const lastTime = CLASS_TIMES_MIN[lastIndex];
+    const completedCount = activeIndexes.filter(
+      (index) => nowMin > CLASS_TIMES_MIN[index].endMin
+    ).length;
+
+    setText("dayStartText", CLASS_TIMES[firstIndex].start);
+    setText("dayEndText", CLASS_TIMES[lastIndex].end);
+    setText("dailyDebug", completedCount + " z " + activeIndexes.length + " hotovo");
+    renderDayTimeline(lessons, activeIndexes, nowMin);
 
     if (nowMin < firstTime.startMin) {
-      setDailyBadge("", "Za chvíli");
-      setText("dailyText", "Začne: " + formatLesson(lessons[firstIndex]));
+      setDailyBadge("", "Před výukou");
+      setText("dailyText", "První hodina: " + formatLesson(lessons[firstIndex]));
       setText(
         "daylabel",
-        "Hodina " + (firstIndex + 1) + " · start v " + CLASS_TIMES[firstIndex].start
+        "Začíná v " + CLASS_TIMES[firstIndex].start + " · dnes " + activeIndexes.length + " hodin"
       );
-      setText("dailyDebug", formatWeekdayCZ(now) + " · " + CONFIG.className);
-      setBar("daybar", 0);
       return;
     }
 
     if (nowMin > lastTime.endMin) {
       setDailyBadge("free", "Hotovo");
-      setText("dailyText", "Pro dnešek cooked. Volno 😎");
-      setText("daylabel", activeIndexes.length + " hodin dokončeno.");
-      setText("dailyDebug", formatWeekdayCZ(now) + " · " + CONFIG.className);
-      setBar("daybar", 100);
+      setText("dailyText", "Dnešní výuka dokončena. GG 😎");
+      setText(
+        "daylabel",
+        activeIndexes.length + " hodin · " + CLASS_TIMES[firstIndex].start + "–" + CLASS_TIMES[lastIndex].end
+      );
+      setText("dailyDebug", activeIndexes.length + " z " + activeIndexes.length + " hotovo");
       return;
     }
 
-    for (let index = 0; index < CLASS_TIMES.length; index += 1) {
-      const currentTime = CLASS_TIMES_MIN[index];
-      const currentLesson = lessons[index];
-      if (
-        currentLesson &&
-        nowMin >= currentTime.startMin &&
-        nowMin <= currentTime.endMin
-      ) {
-        const percent =
-          ((nowMin - currentTime.startMin) /
-            Math.max(1, currentTime.endMin - currentTime.startMin)) *
-          100;
-        const nextIndex = activeIndexes.find((candidate) => candidate > index);
-        const nextText = typeof nextIndex === "number"
-          ? " · Další: " + formatLesson(lessons[nextIndex])
-          : "";
-        setDailyBadge("", "Právě");
-        setText("dailyText", formatLesson(currentLesson) + nextText);
-        setText(
-          "daylabel",
-          "Hodina " + (index + 1) + " · " +
-            CLASS_TIMES[index].start + "–" + CLASS_TIMES[index].end
-        );
-        setText("dailyDebug", Math.round(percent) + "% aktuální hodiny");
-        setBar("daybar", percent);
-        return;
-      }
+    const currentIndex = activeIndexes.find((index) => {
+      const time = CLASS_TIMES_MIN[index];
+      return nowMin >= time.startMin && nowMin <= time.endMin;
+    });
+    if (typeof currentIndex === "number") {
+      const nextIndex = activeIndexes.find((candidate) => candidate > currentIndex);
+      setDailyBadge("", "Probíhá");
+      setText("dailyText", (currentIndex + 1) + ". hodina · " + formatLesson(lessons[currentIndex]));
+      setText(
+        "daylabel",
+        CLASS_TIMES[currentIndex].start + "–" + CLASS_TIMES[currentIndex].end +
+          (typeof nextIndex === "number" ? " · další " + formatLesson(lessons[nextIndex]) : " · poslední hodina")
+      );
+      return;
     }
 
     const nextIndex = activeIndexes.find(
@@ -1034,25 +1275,18 @@
     );
     if (typeof nextIndex === "number") {
       const isLunch = nowMin >= LUNCH_START && nowMin < LUNCH_END;
-      setDailyBadge("", isLunch ? "Oběd" : "Pauza");
-      setText(
-        "dailyText",
-        (isLunch ? "Obědová pauza" : "Následuje") + ": " + formatLesson(lessons[nextIndex])
-      );
+      setDailyBadge(isLunch ? "lunch" : "", isLunch ? "Oběd" : "Pauza");
+      setText("dailyText", isLunch ? "Obědová pauza" : "Pauza mezi hodinami");
       setText(
         "daylabel",
-        "Další hodina v " + CLASS_TIMES[nextIndex].start
+        "Další: " + formatLesson(lessons[nextIndex]) + " v " + CLASS_TIMES[nextIndex].start
       );
-      setText("dailyDebug", formatWeekdayCZ(now) + " · " + CONFIG.className);
-      setBar("daybar", 0);
       return;
     }
 
-    setDailyBadge("free", "Volno");
-    setText("dailyText", "Pro dnešek hotovo 😎");
-    setText("daylabel", "");
-    setText("dailyDebug", formatWeekdayCZ(now) + " · " + CONFIG.className);
-    setBar("daybar", 100);
+    setDailyBadge("free", "Hotovo");
+    setText("dailyText", "Dnešní výuka dokončena. GG 😎");
+    setText("daylabel", activeIndexes.length + " hodin dokončeno.");
   }
 
   function normalizeTrackerClass(value) {
@@ -1079,7 +1313,7 @@
   function updateCafaTracker(now) {
     const dayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
-    const source = state.teacherOnline ? "online + local" : "lokální";
+    const source = state.teacherOnline ? "online" : "lokální nouzovka";
 
     if (!dayKey || !isSchoolDay(now)) {
       setText("cafaMain", "He gone 😔");
@@ -1244,41 +1478,80 @@
     }
   }
 
+  function hasTimetableData(result) {
+    return Boolean(
+      result &&
+      result.data &&
+      result.data.ok &&
+      result.data.days &&
+      typeof result.data.days === "object"
+    );
+  }
+
+  function responseList(result, key) {
+    return hasTimetableData(result) && Array.isArray(result.data[key])
+      ? result.data[key]
+      : [];
+  }
+
   async function syncBackend() {
-    if (state.syncing) return;
+    const sequence = state.syncSequence + 1;
+    state.syncSequence = sequence;
     state.syncing = true;
+    setTimetableButtonsLoading(true);
+    const requestedView = state.classView;
+
     try {
-      const [classResult, teacherResult] = await Promise.all([
-        fetchJsonSafe(CLASS_API),
+      const permanentPromise = fetchJsonSafe(classApi("Permanent"));
+      const actualPromise = fetchJsonSafe(classApi("Actual"));
+      const nextPromise = requestedView === "Next"
+        ? fetchJsonSafe(classApi("Next"))
+        : Promise.resolve(null);
+
+      const [permanentResult, actualResult, nextResult, teacherResult] = await Promise.all([
+        permanentPromise,
+        actualPromise,
+        nextPromise,
         fetchJsonSafe(TEACHER_API)
       ]);
 
-      if (classResult.data && classResult.data.ok) {
-        state.classDays = mergeDays(
-          LOCAL_CLASS_DAYS,
-          classResult.data.days,
-          CLASS_TIMES.length
-        );
-        state.classMarks = Array.isArray(classResult.data.marks)
-          ? classResult.data.marks
-          : [];
-        state.classEvents = Array.isArray(classResult.data.events)
-          ? classResult.data.events
-          : [];
-        state.classOnline = true;
-      } else {
-        state.classDays = cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length);
-        state.classMarks = [];
-        state.classEvents = [];
-        state.classOnline = false;
-      }
+      if (sequence !== state.syncSequence) return;
 
-      if (teacherResult.data && teacherResult.data.ok) {
-        state.teacherDays = mergeDays(
-          LOCAL_TEACHER_DAYS,
-          teacherResult.data.days,
-          TEACHER_TIMES.length
-        );
+      const permanentOnline = hasTimetableData(permanentResult);
+      const actualOnline = hasTimetableData(actualResult);
+      const nextOnline = hasTimetableData(nextResult);
+      const baseDays = permanentOnline
+        ? cloneDays(permanentResult.data.days, CLASS_TIMES.length)
+        : cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length);
+      const actualDays = actualOnline
+        ? mergeDays(baseDays, actualResult.data.days, CLASS_TIMES.length)
+        : cloneDays(baseDays, CLASS_TIMES.length);
+
+      state.classBaseOnline = permanentOnline;
+      state.actualOnline = actualOnline;
+      state.actualDays = actualDays;
+      state.actualMarks = responseList(actualResult, "marks");
+      state.actualEvents = responseList(actualResult, "events");
+
+      if (requestedView === "Permanent") {
+        state.classDays = cloneDays(baseDays, CLASS_TIMES.length);
+        state.classMarks = [];
+        state.classSelectedOnline = permanentOnline;
+      } else if (requestedView === "Next") {
+        state.classDays = nextOnline
+          ? mergeDays(baseDays, nextResult.data.days, CLASS_TIMES.length)
+          : cloneDays(baseDays, CLASS_TIMES.length);
+        state.classMarks = responseList(nextResult, "marks");
+        state.classSelectedOnline = nextOnline;
+      } else {
+        state.classDays = cloneDays(actualDays, CLASS_TIMES.length);
+        state.classMarks = [...state.actualMarks];
+        state.classSelectedOnline = actualOnline;
+      }
+      state.classOnline = permanentOnline && state.classSelectedOnline;
+
+      if (hasTimetableData(teacherResult)) {
+        state.teacherDays = cloneDays(teacherResult.data.days, TEACHER_TIMES.length);
         state.teacherOnline = true;
       } else {
         state.teacherDays = cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length);
@@ -1291,8 +1564,29 @@
       renderTimetable();
       renderEventsPanel();
       tick();
+    } catch {
+      if (sequence !== state.syncSequence) return;
+      state.syncState = "ready";
+      state.classBaseOnline = false;
+      state.classSelectedOnline = false;
+      state.classOnline = false;
+      state.actualOnline = false;
+      state.teacherOnline = false;
+      state.classDays = cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length);
+      state.classMarks = [];
+      state.actualDays = cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length);
+      state.actualMarks = [];
+      state.actualEvents = [];
+      state.teacherDays = cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length);
+      updateSourceStatus();
+      renderTimetable();
+      renderEventsPanel();
+      tick();
     } finally {
-      state.syncing = false;
+      if (sequence === state.syncSequence) {
+        state.syncing = false;
+        setTimetableButtonsLoading(false);
+      }
     }
   }
 
@@ -1404,6 +1698,7 @@
   function boot() {
     setText("verText", CONFIG.version);
     initSettings();
+    initTimetableViewSwitch();
     updateSourceStatus();
     renderTimetable();
     renderEventsPanel();
