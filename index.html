@@ -4,21 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Osobní školní dashboard pro DE4A s rozvrhem, událostmi a průběhem školního roku.">
-  <meta name="theme-color" content="#090d14">
+  <meta name="theme-color" content="#0b0b0f">
   <title>School Progress · DE4A</title>
   <link rel="icon" type="image/png" href="./favicon1.png?v=2">
-  <link rel="stylesheet" href="./styles.css?v=1.5.1">
-  <script src="./script.js?v=1.5.1" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=1.5.2">
+  <script src="./script.js?v=1.5.2" defer></script>
 </head>
 <body class="theme-dark">
   <div class="app-shell">
     <header class="app-header">
       <div class="brand-block">
-        <div class="brand-line">
-          <span class="brand-mark" aria-hidden="true">SP</span>
-          <span class="eyebrow">Bakaláři Premium</span>
-          <span class="class-chip" id="classChip">DE4A</span>
-        </div>
         <h1 id="pageTitle">School Progress</h1>
         <div id="mcSplash" class="mc-splash">Loading splash…</div>
       </div>
@@ -99,7 +94,7 @@
       <div class="main-layout">
         <div class="time-columns" aria-label="Průběh školního roku">
           <section class="time-stack" aria-labelledby="realTimeTitle">
-            <div class="column-heading column-heading-standalone">
+            <div class="column-heading column-heading-standalone time-heading-card">
               <h2 id="realTimeTitle">Real-Time</h2>
               <small>Kalendářní čas</small>
             </div>
@@ -131,7 +126,7 @@
           </section>
 
           <section class="time-stack" aria-labelledby="rawTimeTitle">
-            <div class="column-heading column-heading-standalone">
+            <div class="column-heading column-heading-standalone time-heading-card">
               <h2 id="rawTimeTitle">Raw-Time</h2>
               <small>Jen školní dny</small>
             </div>
@@ -228,7 +223,7 @@
     <footer class="footer">
       <span>Created by Johnny Hotovost Corporation, LLC</span>
       <span class="footer-separator">•</span>
-      <span>Version <span id="verText">1.5.1</span></span>
+      <span>Version <span id="verText">1.5.2</span></span>
       <span class="footer-separator">•</span>
       <a href="https://ko-fi.com/johnny74802" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>
     </footer>
