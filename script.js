@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.5.0",
+    version: "1.5.1",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000,
     localTimetableUpdated: "03.09.2026"
