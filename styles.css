@@ -181,12 +181,10 @@ body.theme-halloween {
   --danger: #ff5c64;
   --secondary-rgb: 168, 117, 255;
   --shadow: 0 20px 64px rgba(5, 0, 9, 0.36);
-  --theme-image:
-    radial-gradient(circle at 10% -4%, rgba(255, 126, 18, 0.25), transparent 34%),
-    radial-gradient(circle at 92% 7%, rgba(139, 73, 255, 0.2), transparent 32%),
-    linear-gradient(145deg, rgba(255, 111, 0, 0.035), transparent 48%);
-  --theme-opacity: 1;
-  --theme-filter: none;
+  --theme-image: url("./Halloween.png");
+  --theme-opacity: 0.2;
+  --theme-position: center top;
+  --theme-filter: saturate(0.92) contrast(1.05);
 }
 
 body.theme-christmas {
@@ -209,12 +207,10 @@ body.theme-christmas {
   --danger: #ff5d68;
   --secondary-rgb: 215, 65, 75;
   --shadow: 0 20px 62px rgba(0, 22, 13, 0.32);
-  --theme-image:
-    radial-gradient(circle at 9% 2%, rgba(232, 201, 104, 0.17), transparent 30%),
-    radial-gradient(circle at 94% 8%, rgba(208, 39, 52, 0.2), transparent 34%),
-    linear-gradient(140deg, rgba(13, 92, 60, 0.1), transparent 52%);
-  --theme-opacity: 1;
-  --theme-filter: none;
+  --theme-image: url("./Christmas.png");
+  --theme-opacity: 0.18;
+  --theme-position: center top;
+  --theme-filter: saturate(0.88) contrast(1.04);
 }
 
 body.theme-easter {
@@ -265,13 +261,10 @@ body.theme-kakajicko {
   --danger: #e97052;
   --secondary-rgb: 118, 68, 42;
   --shadow: 0 20px 62px rgba(17, 7, 2, 0.34);
-  /* Až bude hotové pozadí, stačí --theme-image přepnout na soubor Kakajicko.png. */
-  --theme-image:
-    radial-gradient(circle at 14% 0%, rgba(240, 194, 122, 0.18), transparent 33%),
-    radial-gradient(circle at 92% 12%, rgba(112, 55, 30, 0.28), transparent 36%),
-    linear-gradient(145deg, rgba(217, 154, 82, 0.045), transparent 48%);
-  --theme-opacity: 1;
-  --theme-filter: none;
+  --theme-image: url("./Kakajicko.png");
+  --theme-opacity: 0.13;
+  --theme-position: center top;
+  --theme-filter: saturate(0.82) contrast(1.04);
 }
 
 body.theme-maturita {
