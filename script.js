@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.6.3",
+    version: "1.6.4",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000
   });
@@ -26,6 +26,19 @@
     Actual: "Tento Týden",
     Next: "Příští Týden"
   });
+  const THEMES = Object.freeze([
+    "light",
+    "dark",
+    "loona",
+    "sobokill",
+    "kasparnakart",
+    "battlecats",
+    "halloween",
+    "christmas",
+    "easter",
+    "kakajicko",
+    "maturita"
+  ]);
   const TIMETABLE_VIEW_KEYS = Object.keys(TIMETABLE_VIEWS);
   const classApi = (type) =>
     CONFIG.workerBase + "/api/timetable?class=" + encodeURIComponent(CONFIG.classId) +
@@ -489,9 +502,8 @@
   }
 
   function applyTheme(theme) {
-    const allowed = ["light", "dark", "loona", "sobokill", "kasparnakart", "battlecats"];
-    const selected = allowed.includes(theme) ? theme : "dark";
-    document.body.classList.remove(...allowed.map((item) => "theme-" + item));
+    const selected = THEMES.includes(theme) ? theme : "dark";
+    document.body.classList.remove(...THEMES.map((item) => "theme-" + item));
     document.body.classList.add("theme-" + selected);
     localStorage.setItem("sp_theme", selected);
     $("themeSelect").value = selected;
