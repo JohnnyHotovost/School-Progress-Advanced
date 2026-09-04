@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.6.4",
+    version: "1.6.5",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000
   });
