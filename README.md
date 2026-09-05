@@ -4,7 +4,8 @@ Osobní školní dashboard pro třídu **DE4A**. Zobrazuje průběh studia, aktu
 
 Živá verze: [johnnyhotovost.github.io/School-Progress-Advanced](https://johnnyhotovost.github.io/School-Progress-Advanced/)
 
-Aktuální verze frontendu: **1.6.5**  
+Aktuální verze frontendu: **1.7.0**
+
 Aktuální verze Worker parseru: **v9**
 
 ## Co projekt umí
@@ -14,19 +15,21 @@ Aktuální verze Worker parseru: **v9**
 - při výpadku použije vestavěný lokální rozvrh;
 - rozpoznává běžné hodiny, dělené skupiny, suplování, zrušené hodiny a mimořádné bloky;
 - zobrazuje například akce školy, třídnické práce, technické důvody a volné dny;
+- svátky a ředitelské volno zobrazuje jako jeden celodenní blok, nikoli jako odučené hodiny;
 - zvýrazňuje dnešní den, probíhající hodinu a již uplynulé hodiny;
 - skládá Daily Progress podle skutečného rozvrhu aktuálního týdne;
 - ukazuje pevně vyznačenou obědovou pauzu 12:20–12:50;
 - sleduje aktuální rozvrh učitele UV069 v Cáfa Trackeru;
 - počítá kalendářní i školní průběh týdne, měsíce, roku a celého studia;
 - nabízí motivy, změnu měřítka, průhlednost karet a skrytí jednotlivých částí;
+- pro pět motivů nabízí volitelné jemné animace **Themes Interactive**;
 - náhodně vybírá Minecraft splash texty ze samostatného textového souboru.
 
 ## Jak je projekt postavený
 
 Projekt má dvě oddělené části:
 
-1. **Frontend na GitHub Pages** – soubory `index.html`, `styles.css` a `script.js`.
+1. **Frontend na GitHub Pages** – `index.html`, `styles.css`, `script.js`, kalendář `school-calendar.js` a volitelné efekty `theme-effects.js` / `theme-effects.css`.
 2. **Cloudflare Worker API** – soubor `cloudflare-worker.mjs`, který stáhne veřejnou stránku Bakalářů, rozparsuje ji a vrátí čistá JSON data.
 
 ```mermaid
@@ -64,6 +67,10 @@ Frontend nečte HTML Bakalářů přímo. Prohlížeč by narazil na omezení CO
 | `index.html` | Struktura dashboardu, nastavení, přepínače a všechny hlavní sekce. |
 | `styles.css` | Celý vzhled, responzivní layout, motivy, průhlednost, animace a stavy rozvrhu. |
 | `script.js` | Konfigurace, lokální data, načítání API, fallback, výpočty a vykreslování UI. |
+| `school-calendar.js` | České svátky, výpočet Velikonoc a sjednocení celodenního volna z API. |
+| `theme-effects.js` / `theme-effects.css` | Přepínač Themes Interactive, výběr scén, animace a jejich životní cyklus. |
+| `assets/theme-effects/` | Lokální obrysové ikony, malý font hieroglyfů a licence. |
+| `tests/` | Regresní testy kalendáře, parseru, Daily Progressu a životního cyklu efektů. |
 | `cloudflare-worker.mjs` | Worker API a parser veřejných stránek Bakalářů. |
 | `MinecraftTextSource.txt` | Zdroj náhodných Minecraft splash textů. |
 | `Monocraft.ttf` | Font použitý pro Minecraft splash text. |
@@ -87,7 +94,7 @@ const CONFIG = Object.freeze({
   classId: "5A",
   className: "DE4A",
   teacherId: "UV069",
-  version: "1.6.5",
+  version: "1.7.0",
   refreshMs: 5 * 60 * 1000,
   requestTimeoutMs: 12000
 });
@@ -198,6 +205,22 @@ Worker rozpoznává běžné atomy rozvrhu i speciální záznamy Bakalářů:
 
 Díky tomu nejsou technické důvody, akce školy nebo třídnické práce omezené na klasickou 45minutovou buňku. Pokud Bakaláři uvedou začátek a konec, Worker vypočítá všechny překryté hodiny a frontend vytvoří jeden souvislý blok.
 
+## Svátky a celodenní volno
+
+V datovaných režimech **Tento týden** a **Příští týden** se volno zobrazí přes celou šířku dne. Karta obsahuje název (například „Den české státnosti“) a „Volno · celý den“. Vedle dne je také datum, aby bylo jasné, ke kterému týdnu záznam patří. Ve stálém rozvrhu se svátky nezobrazují: jde o nedatovanou šablonu výuky.
+
+Pořadí zdrojů:
+
+1. **Bakaláři mají přednost.** Worker v9 předá `DayOff` a `DayOffName` jako blok se `source: "day-off"`. Frontend zachová název, odstraní z daného dne vyučovací buňky a vytvoří jediný celodenní blok. Stejná událost se ukáže v panelu Události a změny.
+2. **Kalendář doplní známý český svátek**, pokud pro daný den není online rozvrh ani událost. Při výpadku upraví také nouzový stálý podklad, aby na svátek neukazoval běžné hodiny. Skutečné online hodiny a události kalendář nepřepisuje.
+3. **Specifické školní volno** musí dodat Bakaláři. Vestavěný kalendář neodhaduje nově vyhlášené ředitelské volno, technické důvody nebo školní akce.
+
+Kalendář v `school-calendar.js` obsahuje pevné české státní a ostatní svátky a každý rok vypočítává Velký pátek a Velikonoční pondělí. Názvy vycházejí z [přehledu MZV ČR](https://mzv.gov.cz/oslo/cz/viza_a_konzularni_cestovni_informace/statni_svatky_cr_norsko_island/index.html).
+
+Celodenní volno má po zpracování `allDay: true` a `noSchool: true`. **Nezapočítává se do počtu vyučovacích hodin** v Daily Progressu ani do hodin Cáfa Trackeru. Běžné školní akce, třídnické práce a další časové bloky si naopak zachovají původní název a rozsah z Bakalářů.
+
+Příklad: svátek **28. 9. 2026** patří do týdne 28. 9.–2. 10. V přehledu Tento týden se objeví až v tomto týdnu; o týden dříve bude vidět v Příštím týdnu. Dashboard používá veřejné režimy Actual/Next/Permanent, nikoli soukromý kalendář s libovolně zvoleným datem.
+
 ## Daily Progress
 
 Daily Progress se vždy skládá z aktuálního rozvrhu tohoto týdne.
@@ -214,7 +237,7 @@ Postup výpočtu:
 
 Obědová pauza je pevně nastavená na **12:20–12:50**. Časová osa zachovává skutečné poměry délek hodin a přestávek. Aktuální poloha během dne je označena samostatným markerem.
 
-O víkendu, během zadaných prázdnin nebo ve dni bez aktivních hodin se zobrazí stav bez výuky.
+O sobotách a nedělích se zobrazí **Weekend** bez prázdné časové osy a bez dalšího textu. Ve svátek nebo při celodenním volnu se zobrazí jeho název a stav Volno. Ve dni bez aktivních hodin se zobrazí stav bez výuky; časová osa je také skrytá.
 
 ## Cáfa Tracker
 
@@ -247,6 +270,7 @@ Počítá běžně plynoucí kalendářní čas. Do výpočtu měsíce, školní
 Počítá pouze školní dny. Vynechává:
 
 - soboty a neděle;
+- české státní a ostatní svátky včetně Velkého pátku a Velikonočního pondělí;
 - intervaly uvedené v `NON_SCHOOL_RANGES`;
 - jednotlivé dny uvedené v `DIRECTOR_DAYS`.
 
@@ -270,7 +294,7 @@ Prázdniny a další neškolní intervaly jsou ručně zadané v `NON_SCHOOL_RAN
 const DIRECTOR_DAYS = ["2026-11-20"];
 ```
 
-Tyto seznamy ovlivňují Raw-Time i rozhodnutí, zda má Daily Progress daný den považovat za školní.
+Tyto seznamy ovlivňují Raw-Time a nouzový výpočet Daily Progressu a Cáfa Trackeru. Při dostupném aktuálním API se stav výuky řídí online rozvrhem. Školní volno dodané API se automaticky nepřidává do historických seznamů pro Raw-Time.
 
 ## Minecraft splash text
 
@@ -322,6 +346,35 @@ U obrázkových motivů jsou důležité hlavně tyto proměnné:
 
 `--theme-opacity` nastavuje intenzitu obrázku pozadí. Není to průhlednost karet v nastavení.
 
+### Themes Interactive
+
+V Nastavení pod výběrem **Theme** je trvale viditelný přepínač **Themes Interactive**. Výchozí stav je **vypnuto**. Po zapnutí se volba uloží pro další návštěvy; změna motivu ji nezapomene.
+
+| Motiv | Jemné efekty |
+|---|---|
+| Halloween | Pavouk na vlákně nebo přecházející přes spodní okraj, pavučina, přelet čarodějnice. |
+| Loona | Růžová světelná stopa, stoupající srdíčka, krátké „uwu“. |
+| Christmas | Nepřetržité decentní sněžení a občas Santa se saněmi, kometa, sob nebo padající dárek. |
+| SOBOKILL | Zlaté hieroglyfy a silueta pyramid. |
+| Easter | Zajíček a pastelová vajíčka. |
+| Ostatní motivy | Přepínač zůstává viditelný, ale je neaktivní. |
+
+Efekty sdílejí obrysové ikony, jemné barvy a nízkou neprůhlednost. Objevují se převážně při okrajích obrazovky. První scéna začne přibližně dvě sekundy po zapnutí; další se střídají s rozestupem 26–42 sekund a stejná scéna se neopakuje hned dvakrát za sebou. Sněžení je samostatná stálá vrstva.
+
+Technické chování:
+
+- dekorace nezabírají místo v layoutu, nepřekrývají klikání a jsou skryté před čtečkami obrazovky;
+- při vypnutí, změně theme, opuštění stránky nebo skrytí záložky se animace i časovače zruší;
+- při návratu se efekty obnoví, pokud zůstávají povolené;
+- na mobilu je nejvýše 9 sněhových částic, na větší obrazovce 18; další se postupně nehromadí;
+- pokud zařízení požaduje **omezený pohyb** (`prefers-reduced-motion`), přepínač je neaktivní a vysvětluje důvod;
+- nepodporuje-li prohlížeč Web Animations API nebo CSS masky, nelze efekty zapnout;
+- grafika se načítá ze stejného webu, bez externí animační služby; font hieroglyfů se načte až při zapnutí SOBOKILL.
+
+Při přechodu na nepodporovaný motiv se přepínač dočasně vypne. Po návratu na podporovaný motiv se obnoví uložená volba. Totéž platí pro dočasně zapnutý omezený pohyb v zařízení.
+
+Ikony jsou z projektu OpenMoji (CC BY-SA 4.0), hieroglyfy z Noto Sans Egyptian Hieroglyphs (SIL OFL 1.1). Přesné zdroje, úpravy a licence jsou v [assets/theme-effects/ATTRIBUTION.md](assets/theme-effects/ATTRIBUTION.md).
+
 ### Jak přidat nový motiv
 
 1. Přidej položku do `#themeSelect` v `index.html`.
@@ -338,6 +391,7 @@ Nastavení se ukládá pouze do `localStorage` daného prohlížeče. Neodesíl�
 | Nastavení | Rozsah / možnosti | Klíč v `localStorage` |
 |---|---|---|
 | Motiv | 11 motivů | `sp_theme` |
+| Themes Interactive | zapnuto/vypnuto, u 5 podporovaných motivů | `sp_theme_interactive` |
 | Režim nadpisu | Normal, Nonchalant, Freaky | `sp_mode` |
 | Velikost rozhraní | 85–120 % | `sp_ui_scale` |
 | Průhlednost karet | 0–100 % | `sp_card_transparency` |
@@ -471,9 +525,14 @@ Minimální technická kontrola:
 
 ```bash
 node --check script.js
+node --check school-calendar.js
+node --check theme-effects.js
 node --check cloudflare-worker.mjs
+node --test tests/*.test.mjs
 git diff --check
 ```
+
+Testy běží v Node.js 20+ bez instalace balíčků. Ověřují pevné i pohyblivé svátky, rozhraní Worker v9 → frontend, Actual/Next/Permanent, Weekend a přechod zpět k výuce, zachování událostí, preference efektů, omezený pohyb, skrytou záložku a omezený počet animací v dlouhé relaci. Pro kontrolu změny času lze na Linuxu/macOS použít `TZ=Europe/Prague node --test tests/*.test.mjs`. Tyto testy nekontrolují výsledný vzhled v prohlížeči.
 
 Dále ručně zkontroluj:
 
@@ -500,7 +559,7 @@ Frontend je statický a GitHub Pages ho publikuje z tohoto repozitáře. Běžn�
 Při změně CSS nebo JavaScriptu zvyš všechny tři hodnoty verze:
 
 1. `CONFIG.version` v `script.js`;
-2. `?v=...` u `styles.css` a `script.js` v `index.html`;
+2. `?v=...` u všech CSS a JS souborů v `index.html`;
 3. verzi v patičce `index.html`.
 
 Tím se zabrání tomu, aby prohlížeč dál používal staré soubory z cache.
@@ -571,6 +630,14 @@ Frontend úmyslně zobrazí stálý online rozvrh jako nouzový podklad. Stav v 
 
 Průhlednost karet a intenzita obrázku jsou dvě rozdílná nastavení. Karty mohou být neprůhledné, i když se obrázek načetl správně.
 
+### Themes Interactive nejde zapnout
+
+Zkontroluj vysvětlení pod přepínačem. Efekty podporují pouze Halloween, Loona, Christmas, SOBOKILL a Easter. U ostatních motivů je neaktivní přepínač záměrný. Příčinou může být také systémové nastavení omezeného pohybu nebo chybějící podpora prohlížeče. Zapnuté efekty v neaktivní záložce neběží a po návratu se znovu spustí.
+
+### Svátek není ve stálém rozvrhu
+
+To je správně: stálý rozvrh nepatří ke konkrétnímu datu. Použij Tento týden nebo Příští týden a ověř datum vedle příslušného dne. Známé české svátky mohou být doplněné z kalendáře, ale konkrétní školní události musí být dostupné ve veřejném zdroji Bakalářů.
+
 ### Zobrazuje se starý vzhled nebo starý JavaScript
 
 Zvyš verzi v HTML i JavaScriptu a proveď hard refresh. GitHub Pages a prohlížeč mohou krátce držet starou cache.
@@ -593,7 +660,7 @@ Zkontroluj:
 - Frontend zobrazuje 7 třídních a 9 učitelských hodin, i když Bakaláři mohou vrátit delší den.
 - Datum maturity je pouze orientační, dokud není známý přesný termín.
 - Nastavení se ukládá jen na konkrétním zařízení a v konkrétním prohlížeči.
-- Projekt zatím nemá automatickou sadu unit nebo end-to-end testů.
+- Regresní testy se spouštějí ručně přes Node.js; projekt zatím nemá automatický CI testovací workflow ani testy vzhledu v prohlížeči.
 - Worker se nenasazuje automaticky společně s frontendem.
 
 ## Bezpečnost a soukromí
