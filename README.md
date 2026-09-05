@@ -4,7 +4,7 @@ Osobní školní dashboard pro třídu **DE4A**. Zobrazuje průběh studia, aktu
 
 Živá verze: [johnnyhotovost.github.io/School-Progress-Advanced](https://johnnyhotovost.github.io/School-Progress-Advanced/)
 
-Aktuální verze frontendu: **1.7.0**
+Aktuální verze frontendu: **1.7.1**
 
 Aktuální verze Worker parseru: **v9**
 
@@ -94,7 +94,7 @@ const CONFIG = Object.freeze({
   classId: "5A",
   className: "DE4A",
   teacherId: "UV069",
-  version: "1.7.0",
+  version: "1.7.1",
   refreshMs: 5 * 60 * 1000,
   requestTimeoutMs: 12000
 });
@@ -237,7 +237,7 @@ Postup výpočtu:
 
 Obědová pauza je pevně nastavená na **12:20–12:50**. Časová osa zachovává skutečné poměry délek hodin a přestávek. Aktuální poloha během dne je označena samostatným markerem.
 
-O sobotách a nedělích se zobrazí **Weekend** bez prázdné časové osy a bez dalšího textu. Ve svátek nebo při celodenním volnu se zobrazí jeho název a stav Volno. Ve dni bez aktivních hodin se zobrazí stav bez výuky; časová osa je také skrytá.
+O sobotách a nedělích se původní nadpis „Dnes bez výuky 😎“ mění na **Weekend 😎**. Rozložení karty, stav Volno, doprovodný text, časová osa i legenda zůstávají stejné jako před aktualizací 1.7.0. Ve svátek nebo při celodenním volnu se zobrazuje původní stav bez výuky; název volna je v rozvrhu a panelu Události a změny. Volno se nepočítá mezi vyučovací hodiny.
 
 ## Cáfa Tracker
 
@@ -680,4 +680,3 @@ Zkontroluj:
 - Cáfa Tracker vždy používá tento týden učitele UV069.
 - Nastavení vzhledu se ukládá lokálně a po obnovení stránky zůstane zachované.
 - Pokud něco vypadá zastarale, první kontrola je zdrojový stav a poté verze cache.
-

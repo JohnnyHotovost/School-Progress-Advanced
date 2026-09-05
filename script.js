@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.7.0",
+    version: "1.7.1",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000
   });
@@ -1338,8 +1338,7 @@
     );
   }
 
-  function setDailyEmpty(text, detail = "") {
-    $("dailyBlock").classList.add("daily-free");
+  function setDailyEmpty(text, detail) {
     setDailyBadge("free", "Volno");
     setText("dailyText", text);
     setDailyDetail(detail);
@@ -1354,13 +1353,12 @@
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
     if (!dayKey) {
-      setDailyEmpty("Weekend");
-      setDailyBadge("", "");
+      setDailyEmpty("Weekend 😎", "Daily Progress má taky nárok na volno.");
       return;
     }
     const dayOff = state.actualBlocks.find((block) => (block.dayKey || block.day) === dayKey && SchoolCalendar.isDayOff(block));
     if (dayOff || (!state.actualOnline && !isSchoolDay(now))) {
-      setDailyEmpty(dayOff?.name || SchoolCalendar.holidayName(now) || "Dnes bez výuky");
+      setDailyEmpty("Dnes bez výuky 😎", "Daily Progress má taky nárok na volno.");
       return;
     }
 
@@ -1370,11 +1368,10 @@
       .filter((index) => index >= 0);
 
     if (!activeIndexes.length) {
-      setDailyEmpty("Dnes bez výuky", "V aktuálním rozvrhu nejsou žádné hodiny.");
+      setDailyEmpty("Dnes bez výuky 😎", "V aktuálním rozvrhu nejsou žádné hodiny.");
       return;
     }
 
-    $("dailyBlock").classList.remove("daily-free");
     const firstIndex = activeIndexes[0];
     const lastIndex = activeIndexes[activeIndexes.length - 1];
     const firstTime = CLASS_TIMES_MIN[firstIndex];

@@ -103,22 +103,26 @@ test("normalizing never mutates the upstream response and tolerates absent optio
   assert.equal(JSON.stringify(input), before);
 });
 
-test("Daily Progress shows Weekend, a named holiday, then returns to a lesson timeline", () => {
+test("Daily Progress keeps its original free-day content and changes only the weekend heading", () => {
   const env = environment();
   env.context.SchoolCalendar = globalThis.SchoolCalendar;
   env.run("script.js", (source) => source.replace('document.addEventListener("DOMContentLoaded", boot);', 'globalThis.subject = { updateDaily, state, activeClassLesson, renderEventsPanel };'));
   const app = env.context.subject;
   app.updateDaily(date("2026-09-05"));
-  assert.equal(env.get("dailyText").textContent, "Weekend");
-  assert.equal(env.get("dailyBadge").classList.contains("hidden"), true);
-  assert.equal(env.get("daylabel").textContent, "");
-  assert.equal(env.get("dailyBlock").classList.contains("daily-free"), true);
+  assert.equal(env.get("dailyText").textContent, "Weekend 😎");
+  assert.equal(env.get("dailyBadge").textContent, "Volno");
+  assert.equal(env.get("dailyBadge").classList.contains("hidden"), false);
+  assert.equal(env.get("daylabel").textContent, "Daily Progress má taky nárok na volno.");
+  assert.equal(env.get("dailyDebug").textContent, "0 hodin");
+  assert.equal(env.get("dayStartText").textContent, "—");
+  assert.equal(env.get("dayEndText").textContent, "—");
+  assert.equal(env.get("dayTimeline").textContent, "Dnes tu není co trackovat.");
   const holiday = normalizeWeek(regular(), { now: date("2026-09-28") });
   app.state.actualDays = holiday.days;
   app.state.actualBlocks = holiday.blocks;
   app.state.actualEvents = holiday.events;
   app.updateDaily(date("2026-09-28"));
-  assert.equal(env.get("dailyText").textContent, "Den české státnosti");
+  assert.equal(env.get("dailyText").textContent, "Dnes bez výuky 😎");
   assert.equal(app.activeClassLesson("Mon", 0), null);
   app.renderEventsPanel();
   assert.equal(env.get("eventsList").children.length, 1);
@@ -126,6 +130,5 @@ test("Daily Progress shows Weekend, a named holiday, then returns to a lesson ti
   app.state.actualDays = regular().days;
   app.state.actualBlocks = [];
   app.updateDaily(date("2026-09-29"));
-  assert.equal(env.get("dailyBlock").classList.contains("daily-free"), false);
   assert.ok(env.get("dayTimeline").children.length > 0);
 });
