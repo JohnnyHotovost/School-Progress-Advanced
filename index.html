@@ -7,8 +7,11 @@
   <meta name="theme-color" content="#0b0b0f">
   <title>School Progress · DE4A</title>
   <link rel="icon" type="image/png" href="./favicon1.png?v=2">
-  <link rel="stylesheet" href="./styles.css?v=1.6.5">
-  <script src="./script.js?v=1.6.5" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=1.7.0">
+  <link rel="stylesheet" href="./theme-effects.css?v=1.7.0">
+  <script src="./school-calendar.js?v=1.7.0" defer></script>
+  <script src="./theme-effects.js?v=1.7.0" defer></script>
+  <script src="./script.js?v=1.7.0" defer></script>
 </head>
 <body class="theme-dark">
   <div class="app-shell">
@@ -36,8 +39,8 @@
       </div>
 
       <div class="settings-grid">
-        <label class="control-field">
-          <span>Theme</span>
+        <div class="control-field theme-control">
+          <label for="themeSelect">Theme</label>
           <select id="themeSelect" aria-label="Theme">
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -51,7 +54,13 @@
             <option value="kakajicko">Kakajíčko</option>
             <option value="maturita">Maturita</option>
           </select>
-        </label>
+          <label class="motion-switch" id="themeInteractiveControl">
+            <span>Themes Interactive</span>
+            <input type="checkbox" id="themeInteractive" role="switch" aria-describedby="themeInteractiveStatus" disabled>
+            <span class="motion-switch-track" aria-hidden="true"></span>
+          </label>
+          <small id="themeInteractiveStatus" role="status">Pro tento motiv není dostupné</small>
+        </div>
 
         <label class="control-field">
           <span>Mode</span>
@@ -247,7 +256,7 @@
     <footer class="footer">
       <span>Created by Johnny Hotovost Corporation, LLC</span>
       <span class="footer-separator">•</span>
-      <span>Version <span id="verText">1.6.5</span></span>
+      <span>Version <span id="verText">1.7.0</span></span>
       <span class="footer-separator">•</span>
       <a href="https://ko-fi.com/johnny74802" target="_blank" rel="noopener noreferrer">Support on Ko-fi</a>
     </footer>

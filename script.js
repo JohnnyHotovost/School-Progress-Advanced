@@ -6,7 +6,7 @@
     classId: "5A",
     className: "DE4A",
     teacherId: "UV069",
-    version: "1.6.5",
+    version: "1.7.0",
     refreshMs: 5 * 60 * 1000,
     requestTimeoutMs: 12000
   });
@@ -363,7 +363,7 @@
     const weekday = date.getDay();
     if (weekday === 0 || weekday === 6) return false;
     const iso = toISO(date);
-    if (DIRECTOR_DAYS.includes(iso)) return false;
+    if (DIRECTOR_DAYS.includes(iso) || SchoolCalendar.holidayName(date)) return false;
     return !NON_SCHOOL_RANGES.some((item) => iso >= item.start && iso <= item.end);
   }
 
@@ -507,6 +507,7 @@
     document.body.classList.add("theme-" + selected);
     localStorage.setItem("sp_theme", selected);
     $("themeSelect").value = selected;
+    window.ThemeEffects?.setTheme(selected);
   }
 
   function applyUiScale(percent) {
@@ -852,6 +853,7 @@
     const dayKey = block.dayKey || block.day;
     if (isTimetableDayPast(dayKey, now)) return true;
     if (dayKey !== dayKeyFromDate(now)) return false;
+    if (SchoolCalendar.isDayOff(block)) return false;
     const endMin = timeToMinutes(block.end);
     return Number.isFinite(endMin) && now.getHours() * 60 + now.getMinutes() > endMin;
   }
@@ -876,6 +878,8 @@
       item.dataset.day = dayKey;
       item.dataset.begin = block.begin || CLASS_TIMES[start].start;
       item.dataset.end = block.end || CLASS_TIMES[end].end;
+      item.dataset.dayOff = String(SchoolCalendar.isDayOff(block));
+      item.classList.toggle("tt-day-off", SchoolCalendar.isDayOff(block));
       item.style.gridRow = String(dayIndex + 2);
       item.style.gridColumn = String(start + 2) + " / " + String(end + 3);
       item.classList.toggle("tt-today", state.classView !== "Next" && dayKey === todayKey);
@@ -886,7 +890,7 @@
 
       const code = String(block.code || "").trim();
       const name = String(block.name || block.title || code || "Mimořádná událost").trim();
-      const time = [block.begin, block.end].filter(Boolean).join("–");
+      const time = SchoolCalendar.isDayOff(block) ? "Volno · celý den" : [block.begin, block.end].filter(Boolean).join("–");
       const heading = document.createElement("div");
       heading.className = "tt-block-heading";
       if (code) appendTextElement(heading, "span", "tt-block-code", code);
@@ -905,7 +909,7 @@
         teacher: "",
         group: "",
         note: block.info || "",
-        type: "Mimořádný blok",
+        type: SchoolCalendar.isDayOff(block) ? "Volný den" : "Mimořádný blok",
         source: timetableSourceDescription()
       };
       item.setAttribute(
@@ -949,7 +953,11 @@
       day.dataset.day = dayKey;
       day.style.gridRow = String(dayIndex + 2);
       day.style.gridColumn = "1";
-      day.textContent = DAY_LABELS[dayKey];
+      appendTextElement(day, "strong", "", DAY_LABELS[dayKey]);
+      if (state.classView !== "Permanent") {
+        const dayDate = dateForDayIndex(dayIndex, now, state.classView === "Next" ? 1 : 0);
+        appendTextElement(day, "small", "tt-day-date", dayDate.getDate() + ". " + (dayDate.getMonth() + 1) + ".");
+      }
       day.classList.toggle("tt-today", showCurrentWeekState && dayKey === todayKey);
       day.classList.toggle(
         "tt-past-day",
@@ -971,6 +979,11 @@
         cell.style.gridColumn = String(index + 2);
         cell.classList.toggle("tt-today", showCurrentWeekState && dayKey === todayKey);
         cell.classList.toggle("tt-past", isTimetableSlotPast(dayKey, index, now));
+
+        if (spanningBlock) {
+          cell.classList.add("tt-under-block");
+          cell.setAttribute("aria-hidden", "true");
+        }
 
         if (!base && !mark) {
           cell.classList.add("tt-empty");
@@ -1028,12 +1041,7 @@
           "aria-label",
           DAY_LABELS[dayKey] + ", " + (index + 1) + ". hodina, " + (subject || type || "bez výuky")
         );
-        if (spanningBlock) {
-          cell.classList.add("tt-under-block");
-          cell.setAttribute("aria-hidden", "true");
-        } else {
-          bindTooltip(cell, data);
-        }
+        if (!spanningBlock) bindTooltip(cell, data);
 
         grid.appendChild(cell);
       }
@@ -1067,7 +1075,7 @@
       const time = CLASS_TIMES_MIN[index];
       const active =
         state.classView !== "Next" &&
-        isSchoolDay(now) &&
+        (state.classOnline || isSchoolDay(now)) &&
         todayKey === cell.dataset.day &&
         time &&
         nowMin >= time.startMin &&
@@ -1089,8 +1097,9 @@
       const endMin = timeToMinutes(block.dataset.end);
       const active =
         state.classView !== "Next" &&
-        isSchoolDay(now) &&
+        (state.classOnline || isSchoolDay(now)) &&
         todayKey === block.dataset.day &&
+        block.dataset.dayOff !== "true" &&
         Number.isFinite(beginMin) &&
         Number.isFinite(endMin) &&
         nowMin >= beginMin &&
@@ -1104,7 +1113,8 @@
         "tt-past",
         !active && isTimetableBlockPast({
           dayKey: block.dataset.day,
-          end: block.dataset.end
+          end: block.dataset.end,
+          noSchool: block.dataset.dayOff === "true"
         }, now)
       );
     });
@@ -1154,17 +1164,17 @@
     );
 
     events.forEach((event) => {
-      const time = event.begin && event.end ? " · " + event.begin + "–" + event.end : "";
+      const time = SchoolCalendar.isDayOff(event) ? " · Volno · celý den" : event.begin && event.end ? " · " + event.begin + "–" + event.end : "";
       const date = event.date ? " " + event.date : "";
-      const title = event.code && event.code !== event.name
+      const title = !SchoolCalendar.isDayOff(event) && event.code && event.code !== event.name
         ? event.code + " · " + (event.name || "Událost")
         : event.name || event.code || "Událost";
       list.appendChild(
         createEventItem(
           title,
           dayLabelCZ(event.dayKey) + date + time,
-          event.info || "",
-          "event"
+          SchoolCalendar.isDayOff(event) && event.info === "Volno" ? "" : event.info || "",
+          SchoolCalendar.isDayOff(event) ? "day-off" : "event"
         )
       );
     });
@@ -1199,6 +1209,7 @@
   }
 
   function activeClassLesson(dayKey, index) {
+    if (state.actualBlocks.some((block) => (block.dayKey || block.day) === dayKey && SchoolCalendar.isDayOff(block))) return null;
     const mark = actualMarkForCell(dayKey, index);
     if (mark && mark.type === "cancel") return null;
     if (mark && mark.type === "event") {
@@ -1327,7 +1338,8 @@
     );
   }
 
-  function setDailyEmpty(text, detail) {
+  function setDailyEmpty(text, detail = "") {
+    $("dailyBlock").classList.add("daily-free");
     setDailyBadge("free", "Volno");
     setText("dailyText", text);
     setDailyDetail(detail);
@@ -1341,8 +1353,14 @@
     const dayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
-    if (!dayKey || !isSchoolDay(now)) {
-      setDailyEmpty("Dnes bez výuky 😎", "Daily Progress má taky nárok na volno.");
+    if (!dayKey) {
+      setDailyEmpty("Weekend");
+      setDailyBadge("", "");
+      return;
+    }
+    const dayOff = state.actualBlocks.find((block) => (block.dayKey || block.day) === dayKey && SchoolCalendar.isDayOff(block));
+    if (dayOff || (!state.actualOnline && !isSchoolDay(now))) {
+      setDailyEmpty(dayOff?.name || SchoolCalendar.holidayName(now) || "Dnes bez výuky");
       return;
     }
 
@@ -1352,10 +1370,11 @@
       .filter((index) => index >= 0);
 
     if (!activeIndexes.length) {
-      setDailyEmpty("Dnes bez výuky 😎", "V aktuálním rozvrhu nejsou žádné hodiny.");
+      setDailyEmpty("Dnes bez výuky", "V aktuálním rozvrhu nejsou žádné hodiny.");
       return;
     }
 
+    $("dailyBlock").classList.remove("daily-free");
     const firstIndex = activeIndexes[0];
     const lastIndex = activeIndexes[activeIndexes.length - 1];
     const firstTime = CLASS_TIMES_MIN[firstIndex];
@@ -1455,7 +1474,7 @@
     const dayKey = dayKeyFromDate(now);
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
-    if (!dayKey || !isSchoolDay(now)) {
+    if (!dayKey || (!state.teacherOnline && !isSchoolDay(now))) {
       setCafaState("Dnes bez výuky", "Cáfa má podle rozvrhu volno.");
       scheduleSixSevenScan();
       return;
@@ -1617,12 +1636,6 @@
     );
   }
 
-  function responseList(result, key) {
-    return hasTimetableData(result) && Array.isArray(result.data[key])
-      ? result.data[key]
-      : [];
-  }
-
   async function syncBackend() {
     const sequence = state.syncSequence + 1;
     state.syncSequence = sequence;
@@ -1652,44 +1665,34 @@
       const baseDays = permanentOnline
         ? cloneDays(permanentResult.data.days, CLASS_TIMES.length)
         : cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length);
-      const actualDays = actualOnline
-        ? cloneDays(actualResult.data.days, CLASS_TIMES.length)
-        : cloneDays(baseDays, CLASS_TIMES.length);
-
+      const normalize = (result, online, offset = 0) => SchoolCalendar.normalizeWeek(
+        online ? result.data : { days: baseDays },
+        { now: new Date(), offset, length: CLASS_TIMES.length, online }
+      );
+      const actual = normalize(actualResult, actualOnline);
       state.classBaseOnline = permanentOnline;
       state.actualOnline = actualOnline;
-      state.actualDays = actualDays;
-      state.actualMarks = responseList(actualResult, "marks");
-      state.actualEvents = responseList(actualResult, "events");
-      state.actualBlocks = responseList(actualResult, "blocks");
+      state.actualDays = actual.days;
+      state.actualMarks = actual.marks;
+      state.actualEvents = actual.events;
+      state.actualBlocks = actual.blocks;
 
-      if (requestedView === "Permanent") {
-        state.classDays = cloneDays(baseDays, CLASS_TIMES.length);
-        state.classMarks = [];
-        state.classBlocks = [];
-        state.classSelectedOnline = permanentOnline;
-      } else if (requestedView === "Next") {
-        state.classDays = nextOnline
-          ? cloneDays(nextResult.data.days, CLASS_TIMES.length)
-          : cloneDays(baseDays, CLASS_TIMES.length);
-        state.classMarks = responseList(nextResult, "marks");
-        state.classBlocks = responseList(nextResult, "blocks");
-        state.classSelectedOnline = nextOnline;
-      } else {
-        state.classDays = cloneDays(actualDays, CLASS_TIMES.length);
-        state.classMarks = [...state.actualMarks];
-        state.classBlocks = [...state.actualBlocks];
-        state.classSelectedOnline = actualOnline;
-      }
+      const selected = requestedView === "Next"
+        ? normalize(nextResult, nextOnline, 1)
+        : requestedView === "Permanent"
+          ? { days: baseDays, marks: [], blocks: [] }
+          : actual;
+      state.classDays = selected.days;
+      state.classMarks = selected.marks;
+      state.classBlocks = selected.blocks;
+      state.classSelectedOnline = requestedView === "Permanent" ? permanentOnline : requestedView === "Next" ? nextOnline : actualOnline;
       state.classOnline = state.classSelectedOnline;
 
-      if (hasTimetableData(teacherResult)) {
-        state.teacherDays = cloneDays(teacherResult.data.days, TEACHER_TIMES.length);
-        state.teacherOnline = true;
-      } else {
-        state.teacherDays = cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length);
-        state.teacherOnline = false;
-      }
+      state.teacherOnline = hasTimetableData(teacherResult);
+      state.teacherDays = SchoolCalendar.normalizeWeek(
+        state.teacherOnline ? teacherResult.data : { days: LOCAL_TEACHER_DAYS },
+        { length: TEACHER_TIMES.length, online: state.teacherOnline }
+      ).days;
 
       state.lastSync = new Date();
       state.syncState = "ready";
@@ -1713,6 +1716,7 @@
       state.actualEvents = [];
       state.actualBlocks = [];
       state.teacherDays = cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length);
+      applyLocalCalendar();
       updateSourceStatus();
       renderTimetable();
       renderEventsPanel();
@@ -1830,10 +1834,29 @@
     updateTimetableNowHighlight();
   }
 
+  function applyLocalCalendar() {
+    const actual = SchoolCalendar.normalizeWeek({ days: LOCAL_CLASS_DAYS });
+    state.actualDays = actual.days;
+    state.actualMarks = actual.marks;
+    state.actualEvents = actual.events;
+    state.actualBlocks = actual.blocks;
+    const selected = state.classView === "Permanent"
+      ? { days: cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length), marks: [], blocks: [] }
+      : state.classView === "Next"
+        ? SchoolCalendar.normalizeWeek({ days: LOCAL_CLASS_DAYS }, { offset: 1 })
+        : actual;
+    state.classDays = selected.days;
+    state.classMarks = selected.marks;
+    state.classBlocks = selected.blocks;
+    state.teacherDays = SchoolCalendar.normalizeWeek({ days: LOCAL_TEACHER_DAYS }, { length: TEACHER_TIMES.length }).days;
+  }
+
   function boot() {
     setText("verText", CONFIG.version);
+    window.ThemeEffects?.init();
     initSettings();
     initTimetableViewSwitch();
+    applyLocalCalendar();
     updateSourceStatus();
     renderTimetable();
     renderEventsPanel();

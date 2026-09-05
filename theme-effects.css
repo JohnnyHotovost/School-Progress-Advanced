@@ -1,0 +1,131 @@
+/* All motion shares one restrained visual language; the dashboard layout stays unchanged. */
+@font-face {
+  font-family: "Theme Hieroglyphs";
+  src: url("./assets/theme-effects/hieroglyphs.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+.theme-control { justify-content: flex-start; }
+
+.motion-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  margin-top: 5px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.69rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.motion-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.motion-switch-track {
+  position: relative;
+  display: block;
+  flex: 0 0 32px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.motion-switch-track::after {
+  content: "";
+  position: absolute;
+  inset: 3px auto auto 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.motion-switch input:checked + .motion-switch-track {
+  border-color: rgba(var(--accent-rgb), 0.65);
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
+.motion-switch input:checked + .motion-switch-track::after {
+  transform: translateX(12px);
+  background: var(--accent);
+}
+
+.motion-switch input:focus-visible + .motion-switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.motion-switch.is-disabled { color: var(--faint); cursor: not-allowed; }
+.motion-switch.is-disabled .motion-switch-track { opacity: 0.45; }
+.theme-control > #themeInteractiveStatus { line-height: 1.45; margin-top: 0; }
+
+.theme-effects-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  contain: strict;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  color: var(--accent);
+  --fx-size: 42px;
+}
+
+.theme-effects-layer * { pointer-events: none !important; }
+.theme-effects-christmas { color: #d2e6de; }
+.theme-effects-loona { color: #ff83cd; }
+.theme-effects-easter { color: #bb99e9; }
+.theme-effects-sobokill { color: #d6b575; }
+.theme-effects-halloween { color: #dda669; }
+
+.theme-fx-icon {
+  display: block;
+  position: absolute;
+  width: var(--fx-size);
+  height: var(--fx-size);
+  background: currentColor;
+  -webkit-mask: var(--fx-icon) center / contain no-repeat;
+  mask: var(--fx-icon) center / contain no-repeat;
+  opacity: 0;
+}
+
+.theme-fx-flight { position: absolute; width: 120px; height: 72px; opacity: 0; }
+.theme-fx-flight .theme-fx-icon, .theme-fx-spider-drop .theme-fx-icon { opacity: 1; }
+.theme-fx-witch-flight .theme-fx-witch { left: 10px; top: 0; width: 52px; height: 52px; }
+.theme-fx-witch-flight .theme-fx-broom { left: 12px; top: 23px; width: 60px; height: 60px; transform: rotate(55deg); }
+.theme-fx-santa-flight .theme-fx-santa { top: 0; left: 4px; width: 46px; height: 46px; }
+.theme-fx-santa-flight .theme-fx-sleigh { top: 30px; left: 0; width: 54px; height: 40px; }
+.theme-fx-santa-flight .theme-fx-deer { top: 17px; left: 59px; width: 52px; height: 52px; }
+
+.theme-fx-spider-drop { position: absolute; top: 0; width: 40px; height: 190px; transform-origin: top center; opacity: 0; }
+.theme-fx-thread { display: block; width: 1px; height: 150px; margin: 0 auto; background: currentColor; opacity: 0.55; }
+.theme-fx-spider-drop .theme-fx-spider { top: 143px; left: 0; width: 40px; height: 40px; }
+.theme-fx-snow { position: absolute; top: 0; left: 0; border-radius: 50%; background: currentColor; opacity: 0; }
+.theme-fx-trail { position: absolute; width: 150px; height: 2px; background: linear-gradient(90deg, transparent, currentColor); border-radius: 999px; opacity: 0; }
+.theme-fx-trail::after { content: ""; position: absolute; right: 0; top: -1px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; box-shadow: 0 0 12px currentColor; }
+.theme-fx-uwu { position: absolute; font-family: "Monocraft", monospace; font-size: 20px; opacity: 0; }
+.theme-fx-glyphs { position: absolute; font-family: "Theme Hieroglyphs", sans-serif; font-size: 32px; line-height: 1.5; letter-spacing: 0.15em; white-space: nowrap; opacity: 0; }
+.theme-fx-easter-egg { background: linear-gradient(150deg, #e4b578, #bb99e9 54%, #92bea0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-effects-layer { display: none; }
+  .motion-switch-track, .motion-switch-track::after { transition: none; }
+}
+
+@media print {
+  .theme-effects-layer { display: none; }
+}
