@@ -823,14 +823,6 @@ main {
   gap: 8px;
 }
 
-.now-card.daily-free {
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0;
-}
-
-.daily-free .daily-schedule { display: none; }
-.daily-free .now-copy h2 { white-space: normal; line-height: 1.35; margin-bottom: 0; }
-
 .daily-time-meta {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
