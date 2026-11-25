@@ -84,6 +84,7 @@
 
   const LUNCH_START = timeToMinutes("12:20");
   const LUNCH_END = timeToMinutes("12:50");
+  const LUNCH_LABEL = Math.random() < 0.01 ? "Koťák Live" : "Oběd";
 
   const SUBJECT_SHORT = {
     "Matematika": "MAT",
@@ -257,7 +258,6 @@
     classBlocks: [],
     classView: "Actual",
     classBaseOnline: false,
-    classSelectedOnline: false,
     classOnline: false,
     actualDays: cloneDays(LOCAL_CLASS_DAYS, CLASS_TIMES.length),
     actualMarks: [],
@@ -483,30 +483,22 @@
     }
   }
 
-  function applyTitleMode(mode) {
-    const title = $("pageTitle");
-    title.replaceChildren();
-    if (mode === "nonchalant") {
-      const bluePart = document.createElement("span");
-      bluePart.textContent = "Bakaláři";
-      bluePart.style.color = "var(--blue)";
-      title.append(bluePart, document.createTextNode(", kdyby nebyly mid"));
-    } else if (mode === "freaky") {
-      title.textContent = "Kdy to utrpení skončí";
-    } else {
-      title.textContent = "School Progress";
-    }
-    localStorage.setItem("sp_mode", mode);
-    $("modeSelect").value = mode;
-    scheduleSixSevenScan();
-  }
-
   function applyTheme(theme) {
     const selected = THEMES.includes(theme) ? theme : "dark";
     document.body.classList.remove(...THEMES.map((item) => "theme-" + item));
     document.body.classList.add("theme-" + selected);
     localStorage.setItem("sp_theme", selected);
-    $("themeSelect").value = selected;
+    const picker = $("themeSelect");
+    picker.querySelector("option[hidden]")?.remove();
+    picker.value = selected;
+    if (!picker.value) {
+      // Keep a saved theme visible in the closed picker until the user chooses another.
+      const current = new Option(selected[0].toUpperCase() + selected.slice(1), selected);
+      current.hidden = true;
+      current.disabled = true;
+      picker.add(current);
+      current.selected = true;
+    }
     window.ThemeEffects?.setTheme(selected);
   }
 
@@ -567,7 +559,6 @@
     });
 
     $("themeSelect").addEventListener("change", (event) => applyTheme(event.target.value));
-    $("modeSelect").addEventListener("change", (event) => applyTitleMode(event.target.value));
     $("uiScaleRange").addEventListener("input", (event) => applyUiScale(event.target.value));
     $("cardTransparencyRange").addEventListener("input", (event) => {
       applyCardTransparency(event.target.value);
@@ -596,7 +587,6 @@
     });
 
     applyTheme(localStorage.getItem("sp_theme") || "dark");
-    applyTitleMode(localStorage.getItem("sp_mode") || "normal");
     applyUiScale(localStorage.getItem("sp_ui_scale") || "100");
     applyCardTransparency(initialCardTransparency());
     applyVisibility();
@@ -604,7 +594,7 @@
 
   function setStatusMode(element, mode) {
     if (!element) return;
-    element.classList.remove("loading", "online", "fallback");
+    element.classList.remove("loading", "online", "offline");
     element.classList.add(mode);
   }
 
@@ -655,12 +645,12 @@
       ? "loading"
       : state.classOnline
         ? "online"
-        : "fallback";
+        : "offline";
     const teacherMode = state.syncState === "loading"
       ? "loading"
       : state.teacherOnline
         ? "online"
-        : "fallback";
+        : "offline";
 
     setStatusMode($("pillClass"), classMode);
     setStatusMode($("pillTeacher"), teacherMode);
@@ -673,19 +663,17 @@
     if (state.syncState === "loading") {
       setText("statusClass", "Ověřuji Online Změny");
       setText("statusTeacher", "Ověřuji Online Změny");
+      setText("ttUpdatedText", "Připojuji…");
       return;
     }
 
     const selectedLabel = SETTINGS_TIMETABLE_VIEWS[state.classView] || SETTINGS_TIMETABLE_VIEWS.Actual;
-    let classStatus = "Lokální Nouzový Režim";
-    if (state.classOnline) {
-      classStatus = selectedLabel + " · Online";
-    } else if (state.classBaseOnline) {
-      classStatus = selectedLabel + " Nedostupný · Stálý Online";
-    }
-
-    setText("statusClass", classStatus);
-    setText("statusTeacher", state.teacherOnline ? "Tento Týden · Online" : "Lokální Nouzový Režim");
+    const classStatus = state.classOnline ? "Online" : "Offline";
+    const baseStatus = !state.classOnline && state.classBaseOnline ? " · Stálý Online" : "";
+    setText("statusClass", selectedLabel + " · " + classStatus + baseStatus);
+    setText("statusTeacher", "Tento Týden · " + (state.teacherOnline ? "Online" : "Offline"));
+    const checkedAt = formatDateTimeCZ(state.lastSync || new Date());
+    setText("ttUpdatedText", (state.classOnline ? "Aktualizováno " : "Ověřeno ") + checkedAt + " · " + classStatus);
   }
 
   const tooltip = $("ttTooltip");
@@ -803,10 +791,10 @@
   }
 
   function timetableSourceDescription() {
-    if (state.classOnline) return "Bakaláři · " + timetableViewLabel();
-    if (state.classBaseOnline) return "Bakaláři · stálý nouzový pohled";
-    if (state.classSelectedOnline) return "Bakaláři + lokální nouzový základ";
-    return "Lokální nouzový rozvrh";
+    if (state.syncState === "loading") return "Připojuji…";
+    if (state.classOnline) return "Bakaláři · " + timetableViewLabel() + " · Online";
+    if (state.classBaseOnline) return timetableViewLabel() + " · Offline (stálý rozvrh z Bakalářů)";
+    return "Lokální rozvrh · Offline";
   }
 
   function isTimetableSlotPast(dayKey, index, now = new Date()) {
@@ -1049,12 +1037,6 @@
 
     renderTimetableBlocks(grid, now);
 
-    const updated = state.lastSync || new Date();
-    setText(
-      "ttUpdatedText",
-      "Aktualizováno " + formatDateTimeCZ(updated) +
-        (state.classOnline ? "" : " · nouzový režim")
-    );
     updateTimetableNowHighlight();
     scheduleSixSevenScan();
   }
@@ -1202,7 +1184,7 @@
         ? "Ověřuji online změny…"
         : state.actualOnline
           ? "Žádné změny ani události pro tento týden."
-          : "Online změny nejsou dostupné. Zobrazuji nouzový stálý rozvrh.";
+          : "Offline · Změny pro tento týden nejsou dostupné.";
       list.appendChild(empty);
     }
     scheduleSixSevenScan();
@@ -1270,7 +1252,8 @@
       if (pieceEnd < nowMin) segment.classList.add("elapsed-gap");
       if (nowMin >= pieceStart && nowMin <= pieceEnd) segment.classList.add("current-gap");
       if (isLunch) {
-        appendTextElement(segment, "strong", "", "Oběd");
+        const label = appendTextElement(segment, "strong", "", LUNCH_LABEL);
+        label.dataset.compact = LUNCH_LABEL === "Oběd" ? "12:20" : LUNCH_LABEL;
         appendTextElement(segment, "small", "", "12:20–12:50");
       } else {
         segment.setAttribute("aria-hidden", "true");
@@ -1334,7 +1317,7 @@
     timeline.setAttribute(
       "aria-label",
       activeIndexes.length + " hodin, výuka od " + CLASS_TIMES[firstIndex].start +
-        " do " + CLASS_TIMES[lastIndex].end + ", oběd 12:20 až 12:50"
+        " do " + CLASS_TIMES[lastIndex].end + ", " + LUNCH_LABEL + " 12:20 až 12:50"
     );
   }
 
@@ -1423,7 +1406,7 @@
     );
     if (typeof nextIndex === "number") {
       const isLunch = nowMin >= LUNCH_START && nowMin < LUNCH_END;
-      setDailyBadge(isLunch ? "lunch" : "", isLunch ? "Oběd" : "Pauza");
+      setDailyBadge(isLunch ? "lunch" : "", isLunch ? LUNCH_LABEL : "Pauza");
       setText("dailyText", isLunch ? "Obědová pauza" : "Pauza mezi hodinami");
       setDailyDetail(
         "Další: " + formatLesson(lessons[nextIndex]) + " v " + CLASS_TIMES[nextIndex].start
@@ -1682,8 +1665,7 @@
       state.classDays = selected.days;
       state.classMarks = selected.marks;
       state.classBlocks = selected.blocks;
-      state.classSelectedOnline = requestedView === "Permanent" ? permanentOnline : requestedView === "Next" ? nextOnline : actualOnline;
-      state.classOnline = state.classSelectedOnline;
+      state.classOnline = requestedView === "Permanent" ? permanentOnline : requestedView === "Next" ? nextOnline : actualOnline;
 
       state.teacherOnline = hasTimetableData(teacherResult);
       state.teacherDays = SchoolCalendar.normalizeWeek(
@@ -1701,7 +1683,6 @@
       if (sequence !== state.syncSequence) return;
       state.syncState = "ready";
       state.classBaseOnline = false;
-      state.classSelectedOnline = false;
       state.classOnline = false;
       state.actualOnline = false;
       state.teacherOnline = false;
@@ -1714,6 +1695,7 @@
       state.actualBlocks = [];
       state.teacherDays = cloneDays(LOCAL_TEACHER_DAYS, TEACHER_TIMES.length);
       applyLocalCalendar();
+      state.lastSync = new Date();
       updateSourceStatus();
       renderTimetable();
       renderEventsPanel();
@@ -1850,6 +1832,7 @@
 
   function boot() {
     setText("verText", CONFIG.version);
+    setText("lunchLegend", LUNCH_LABEL + " 12:20–12:50");
     window.ThemeEffects?.init();
     initSettings();
     initTimetableViewSwitch();
